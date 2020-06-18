@@ -13,6 +13,6 @@ app.use(express.static('public'))
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use('/', indexRouter);
 
-const server = app.listen(3001, function () {
-    console.log('Connected 3001 port!')
+const server = app.listen(8080, function () {
+    console.log('Connected 8080 port!')
 });
