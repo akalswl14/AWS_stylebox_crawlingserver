@@ -248,7 +248,7 @@ const Scroll = async (instaId, accountNum, LastLoginNum, page) => {
     console.log('Scroll')
     console.log("INSTAGRAM ID : " + instaId);
 
-    var accoutinfo = SelectAccount.selectaccount(accountNum, LastLoginNum);
+    var accoutinfo = await SelectAccount.selectaccount(accountNum, LastLoginNum);
     console.log("ID is " + accoutinfo[0]);
     console.log("PW is " + accoutinfo[1]);
 
@@ -258,7 +258,7 @@ const Scroll = async (instaId, accountNum, LastLoginNum, page) => {
     var element = await page.$('body > pre');
     if (element == null) {
         console.log('Login to instagram')
-        var accoutinfo = SelectAccount.selectaccount(accountNum, LastLoginNum);
+        var accoutinfo = await SelectAccount.selectaccount(accountNum, LastLoginNum);
         console.log("ID is " + accoutinfo[0]);
         console.log("PW is " + accoutinfo[1]);
         const insta_id = accoutinfo[0];
