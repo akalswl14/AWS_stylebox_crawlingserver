@@ -141,19 +141,7 @@ async function batchwriteCrawlingFeedTable(inputData) {
     try {
         var params = {
             RequestItems: {
-                'CrawlingFeed': [
-                    {
-                        PutRequest: {
-                            Item: {
-                                HashKey: 'anotherKey',
-                                NumAttribute: 1,
-                                BoolAttribute: true,
-                                ListAttribute: [1, 'two', false],
-                                MapAttribute: { foo: 'bar' }
-                            }
-                        }
-                    }
-                ]
+                'CrawlingFeed': inputData
             }
         };
         let data = await docClient.batchWrite(params).promise();
