@@ -195,7 +195,7 @@ const ParseData = async (brandInfoData, profileData) => {
     dataFeedNum = brandInfoData.FeedNum;
     console.log(profileData['graphql']['user']['username'])
     var OriginalFollowerNum = profileData['graphql']['user']['edge_followed_by']['count'];
-    brand['FollowerNum'] = OriginalFollowerNum;
+    brandInfoData.FollowerNum = OriginalFollowerNum;
     var OriginalPostNum = profileData['graphql']['user']['edge_owner_to_timeline_media']['count'];
     var UpdateFeedNum = OriginalPostNum - dataFeedNum;
     console.log("PARSEDATA ; Change NewFeedNum")
@@ -247,10 +247,6 @@ const ParseData = async (brandInfoData, profileData) => {
 const Scroll = async (instaId, accountNum, LastLoginNum, page) => {
     console.log('Scroll')
     console.log("INSTAGRAM ID : " + instaId);
-
-    var accoutinfo = await SelectAccount.selectaccount(accountNum, LastLoginNum);
-    console.log("ID is " + accoutinfo[0]);
-    console.log("PW is " + accoutinfo[1]);
 
     url = baseUrl + instaId + '?__a=1';
     await page.goto(url);

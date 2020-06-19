@@ -32,20 +32,6 @@ async function getaccoutlistTable(accountNum, LastLoginNum) {
         console.log(err);
     }
 }
-async function getLastUpdateDateTable() {
-    try {
-        var params = {
-            TableName: 'LastUpdateDate',
-            Key: {
-                'No': 1
-            },
-        };
-        let data = await docClient.get(params).promise();
-        return data;
-    } catch (err) {
-        console.log(err);
-    }
-}
 async function updateLastUpdateDateTable(LastLoginNum) {
     try {
         var params = {
