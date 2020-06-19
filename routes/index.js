@@ -1,6 +1,5 @@
 var express = require('express');
 var router = express.Router();
-var fs = require('fs');
 
 var Crawling = require('./crawling');
 var MakeDownload = require('./MakeDownloadJson');
@@ -16,12 +15,25 @@ router.get('/firstcrawling', function (req, res) {
 router.post('/downloadfeed', function (req, res) {
     console.log('downloading feed!');
     console.log(req.body);
-    var par = JSON.parse(fs.readFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/LastUpdateDate.json', 'utf8'));
-    if (par['crawlingstatus'] == true) {
-        res.redirect('http://localhost:3000/');
-    } else {
+    let dbData = await checkLastUpdateDateTable();
+    if (dbData.Item.crawlingstatus == true) {
+        res.redirect('http://ec2-54-255-199-236.ap-southeast-1.compute.amazonaws.com:8080/');
+    }else {
         MakeDownload.makejson(req, res);
     }
 });
-
+async function checkLastUpdateDateTable() {
+    try {
+        var params = {
+            TableName: 'LastUpdateDate',
+            Key: {
+                'No': 1
+            },
+        };
+        let data = await docClient.get(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
 module.exports = router;

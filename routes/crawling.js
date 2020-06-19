@@ -1,78 +1,176 @@
+var AWS = require('aws-sdk');
+AWS.config.update({
+    region: 'ap-southeast-1'
+})
+var docClient = new AWS.DynamoDB.DocumentClient();
 var UpdateDate = require('./UpdateDate');
-var fs = require('fs');
 var baseUrl = 'https://www.instagram.com/';
 const puppeteer = require('puppeteer');
 var SelectAccount = require('./SelectAccount');
 
 const init = async (req, res) => {
-    var AvoidMultiReq = UpdateCrawlingStatus(true);
-    if(AvoidMultiReq == false){
+    var dbData = await getLastUpdateDateTable();
+    dbData = dbData.Item;
+    if (dbData.crawlingstatus == true) {
         console.log('Crawling is already on. Cancel this request.');
-        return ;
+        return;
     }
-    var BrandList = GetBrandList();
+    var accountNum = dbData.accountNum;
+    var LastLoginNum = dbData.LastLoginNum;
+    await updateLastUpdateDateTable(true);
+    var dbData = await scanallBrandTable();
+    var BrandList = dbData.Items;
+    var brandLength = Object.keys(BrandList).length;
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
-    Len_BrandList = Object.keys(BrandList).length;
-    for (var i = 0; i < Len_BrandList; i++) {
+
+    for (var i = 0; i < brandLength; i++) {
         console.log('for문')
-        //  Reset Brand information to 0 or ""
-        var eachBrand = Object.keys(BrandList)[i];
-        BrandList[eachBrand]['TodayDownloadNum'] = 0
-        BrandList[eachBrand]['Comment'] = ""
+        var rtnData;
         // NewFeedNum, UpdateFeedNum, FollowerNum, Feed information, etc scraping
-        console.log(eachBrand);
-        var profileData = await Scroll(BrandList[eachBrand], page);
+        console.log(BrandList[i].brandName);
+        var profileData = await Scroll(BrandList[i].instaID, accountNum, LastLoginNum, page);
         console.log(profileData.hasOwnProperty(['graphql']));
-        while(profileData.hasOwnProperty(['graphql'])&&profileData['graphql'].hasOwnProperty('user')&&profileData['graphql']['user']['username']!=BrandList[eachBrand]['instaID']){
-            profileData = await Scroll(BrandList[eachBrand], page);
+        while (profileData.hasOwnProperty(['graphql']) && profileData['graphql'].hasOwnProperty('user') && profileData['graphql']['user']['username'] != BrandList[i].instaID) {
+            profileData = await Scroll(BrandList[i].instaID, accountNum, LastLoginNum, page);
         }
+        dbData = await getBrandInfoTable(BrandList[i].brandID);
+        var brandInfoData = dbData.Item;
         if (profileData.hasOwnProperty(['graphql']) && profileData['graphql'].hasOwnProperty('user')) {
-            BrandList[eachBrand] = ParseData(BrandList[eachBrand], eachBrand, profileData);
-        }else{
-            if( BrandList[eachBrand]['reviewstatus'] == 'Y'){
+            rtnData = ParseData(brandInfoData, profileData);
+        } else {
+            if (brandInfoData.ReviewStatus == 'Y') {
                 console.log("init_ELSE ; Change UpdateFeedNum")
-                BrandList[eachBrand]['UpdateFeedNum'] = 0
+                rtnData.UpdateFeedNum = 0
             }
-            BrandList[eachBrand]['reviewstatus'] = 'N';
+            rtnData.ReviewStatus = "N";
             console.log("init_ELSE ; Change NewFeedNum")
-            BrandList[eachBrand]['NewFeedNum'] = 0
+            rtnData.NewFeedNum = 0
         }
-        UpdateBrandJson(BrandList);
+        rtnData.TodayDownloadNum = 0;
+        rtnData.Comment = "";
+        rtnData = Object.assign(brandInfoData, rtnData);
+        await updateBrandInfoTable(rtnData);
     }
     await browser.close();
-    UpdateCrawlingStatus(false);
-    UpdateDate.update_date(req,res);
+    await updateLastUpdateDateTable(false);
+    await UpdateDate.update_date(req, res);
 };
-const GetBrandList = () => {
-    console.log('GetBrandList')
-    const DataBuffer = fs.readFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/brand.json');
-    var JsonData = JSON.parse(DataBuffer.toString());
-    return JsonData;
-};
-const GetCrawlingFeedJson = () => {
-    console.log('GetCrawlingJson')
-    const DataBuffer = fs.readFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/CrawlingFeed.json');
-    var JsonData = JSON.parse(DataBuffer.toString());
-    return JsonData;
+async function getLastUpdateDateTable() {
+    try {
+        var params = {
+            TableName: 'LastUpdateDate',
+            Key: {
+                'No': 1
+            },
+        };
+        let data = await docClient.get(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
 }
-const UpdateBrandJson = (JsonData) => {
-    console.log('UpdateBrandList')
-    fs.writeFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/brand.json', JSON.stringify(JsonData), 'utf-8');
+async function getBrandInfoTable(brandID) {
+    try {
+        var params = {
+            TableName: 'BrandInfo',
+            Key: {
+                'brandID': brandID
+            },
+        };
+        let data = await docClient.get(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
 }
-const UpdateCrawlingFeedJson = (JsonData) => {
-    console.log('UpdateCrawlingJson')
-    fs.writeFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/CrawlingFeed.json', JSON.stringify(JsonData), 'utf-8');
+async function updateLastUpdateDateTable(inputBool) {
+    try {
+        var params = {
+            TableName: 'LastUpdateDate',
+            Key: {
+                "No": 1
+            },
+            UpdateExpression: 'set crawlingstatus = :cs',
+            ExpressionAttributeValues: {
+                ':cs': inputBool
+            }
+        };
+        let data = await docClient.update(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
 }
-const UpdateCrawlingStatus = (status) => {
-    console.log('Update CrawlingStatus');
-    var json_data = JSON.parse(fs.readFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/LastUpdateDate.json').toString());
-    if(json_data['crawlingstatus']==true && status==true){
-        return false;
-    }else{
-        json_data['crawlingstatus'] = status;
-        fs.writeFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/LastUpdateDate.json', JSON.stringify(json_data), 'utf-8');
-        return true;
+async function updateBrandInfoTable(inputData) {
+    try {
+        var params = {
+            TableName: 'BrandInfo',
+            Key: {
+                "brandID": inputData.brandID
+            },
+            ExpressionAttributeNames: {
+                "#Fol": "FollowerNum",
+                "#Feed": "FeedNum",
+                "#UFeed": "UpdateFeedNum",
+                "#NFeed": "NewFeedNum",
+                "#TDN": "TodayDownloadNum",
+                "#DN": "DownloadNum",
+                "#RS": "ReviewStatus",
+                "#CM": "Comment"
+            },
+            UpdateExpression: 'set #Fol = :fol,#Feed = :feed,#UFeed = :ufeed,#NFeed = :nfeed,#TDN = :tdn,#DN = :dn,#RS = :rs,#CM = :c',
+            ExpressionAttributeValues: {
+                ':fol': inputData.FollowerNum,
+                ':feed': inputData.FeedNum,
+                ':ufeed': inputData.UpdateFeedNum,
+                ':nfeed': inputData.NewFeedNum,
+                ':tdn': inputData.TodayDownloadNum,
+                ':dn': inputData.DownloadNum,
+                ':rs': inputData.ReviewStatus,
+                ':c': inputData.Comment
+            }
+        };
+        let data = await docClient.update(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function batchwriteCrawlingFeedTable(inputData) {
+    try {
+        var params = {
+            RequestItems: {
+                'CrawlingFeed': [
+                    {
+                        PutRequest: {
+                            Item: {
+                                HashKey: 'anotherKey',
+                                NumAttribute: 1,
+                                BoolAttribute: true,
+                                ListAttribute: [1, 'two', false],
+                                MapAttribute: { foo: 'bar' }
+                            }
+                        }
+                    }
+                ]
+            }
+        };
+        let data = await docClient.batchWrite(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function scanallBrandTable() {
+    try {
+        var params = {
+            TableName: 'Brand',
+        };
+        let data = await docClient.scan(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
     }
 }
 const DateConversion = (date) => {
@@ -90,29 +188,31 @@ const DateConversion = (date) => {
     var rtnDate = year + '-' + month + '-' + day;
     return rtnDate;
 }
-const ParseData = (brand, brandName, profileData) => {
-    CrawlingData = GetCrawlingFeedJson()
+const ParseData = (brandInfoData, profileData) => {
+    var brandID = brandInfoData.brandID;
+    var rtnData = {};
     console.log('parsing data');
-    dataFeedNum = brand['FeedNum']
+    dataFeedNum = brandInfoData.FeedNum;
     console.log(profileData['graphql']['user']['username'])
     var OriginalFollowerNum = profileData['graphql']['user']['edge_followed_by']['count'];
     brand['FollowerNum'] = OriginalFollowerNum;
     var OriginalPostNum = profileData['graphql']['user']['edge_owner_to_timeline_media']['count'];
     var UpdateFeedNum = OriginalPostNum - dataFeedNum;
     console.log("PARSEDATA ; Change NewFeedNum")
-    brand['NewFeedNum'] = UpdateFeedNum;
+    rtnData.NewFeedNum = UpdateFeedNum;
     if (UpdateFeedNum > 12) {
         UpdateFeedNum = 12;
     }
-    if (brand['ReviewStatus'] == 'N') {
+    if (brandInfoData.ReviewStatus == 'N') {
         console.log("PARSEDATA_if_+= ; Change UpdateFeedNum")
-        brand['UpdateFeedNum'] += UpdateFeedNum;
+        rtnData.UpdateFeedNum = brandInfoData.UpdateFeedNum + UpdateFeedNum;
     } else {
         console.log("PARSEDATA_else_+= ; Change UpdateFeedNum")
-        brand['UpdateFeedNum'] = UpdateFeedNum;
-        brand['ReviewStatus'] = 'N'
+        rtnData.UpdateFeedNum = UpdateFeedNum;
+        rtnData.ReviewStatus = 'N'
     }
-    brand['FeedNum'] = OriginalPostNum;
+    rtnData.FeedNum = OriginalPostNum;
+    var inputData = [];
     for (var i = 0; i < UpdateFeedNum; i++) {
         var EachPostId = profileData['graphql']['user']['edge_owner_to_timeline_media']['edges'][i]['node']['shortcode'];
         var PostTimeStamp = profileData['graphql']['user']['edge_owner_to_timeline_media']['edges'][i]['node']['taken_at_timestamp'];
@@ -126,31 +226,41 @@ const ParseData = (brand, brandName, profileData) => {
             ContentsDict[tmp_key] = 0
         }
         var FeedData = {};
+        FeedData['FeedID'] = EachPostId;
         FeedData['Date'] = DateConversion(new Date(PostTimeStamp * 1000));
         FeedData['ContentsNum'] = ContentsNum;
         FeedData['Contents'] = ContentsDict;
-        FeedData['brand'] = brandName;
+        FeedData['brandID'] = brandID;
         FeedData['CrawlingDate'] = DateConversion(new Date());
         FeedData['DownloadNum'] = 0;
         FeedData['Check'] = false;
-        CrawlingData[EachPostId] = FeedData;
+        var tmp = {
+            PutRequest: {
+                Item: FeedData
+            }
+        }
+        inputData.push(tmp);
     }
-    UpdateCrawlingFeedJson(CrawlingData);
-    return brand;
+    await batchwriteCrawlingFeedTable(inputData);
+    return rtnData;
 }
-const Scroll = async (brand, page) => {
+const Scroll = async (instaId, accountNum, LastLoginNum, page) => {
     console.log('Scroll')
-    instaId = brand['instaID']
-    console.log("INSTAGRAM ID : "+instaId);
+    console.log("INSTAGRAM ID : " + instaId);
+
+    var accoutinfo = SelectAccount.selectaccount(accountNum, LastLoginNum);
+    console.log("ID is " + accoutinfo[0]);
+    console.log("PW is " + accoutinfo[1]);
+
     url = baseUrl + instaId + '?__a=1';
     await page.goto(url);
     await page.waitFor(5000);
     var element = await page.$('body > pre');
     if (element == null) {
         console.log('Login to instagram')
-        var accoutinfo = SelectAccount.selectaccount();
-        console.log("ID is "+accoutinfo[0]);
-        console.log("PW is "+accoutinfo[1]);
+        var accoutinfo = SelectAccount.selectaccount(accountNum, LastLoginNum);
+        console.log("ID is " + accoutinfo[0]);
+        console.log("PW is " + accoutinfo[1]);
         const insta_id = accoutinfo[0];
         const insta_pw = accoutinfo[1];
         try {

@@ -1,4 +1,8 @@
-var fs = require('fs')
+var AWS = require('aws-sdk');
+AWS.config.update({
+    region: 'ap-southeast-1'
+})
+var docClient = new AWS.DynamoDB.DocumentClient();
 var date = new Date();
 var year = date.getFullYear();
 var month = new String(date.getMonth() + 1);
@@ -12,11 +16,24 @@ if (day.length == 1) {
 }
 TodayDate = year + '-' + month + '-' + day;
 var UpdateDate = {
-    update_date: function (req, res) {
-        console.log('Update date');
-        var json_data = JSON.parse(fs.readFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/LastUpdateDate.json').toString());
-        json_data['lastupdatedate']=TodayDate;
-        fs.writeFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/LastUpdateDate.json', JSON.stringify(json_data), 'utf-8');
+    update_date: async function (req, res) {
+        try {
+            var params = {
+                TableName: 'LastUpdateDate',
+                Key: {
+                    "No": 1
+                },
+                UpdateExpression: 'set lastupdatedate = :lud',
+                ExpressionAttributeValues: {
+                    ':lud': TodayDate
+                }
+            };
+            let data = await docClient.update(params).promise();
+            return data;
+        } catch (err) {
+            console.log(err);
+        }
     }
+
 };
 module.exports = UpdateDate;
