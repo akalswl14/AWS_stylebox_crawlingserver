@@ -188,7 +188,7 @@ const DateConversion = (date) => {
     var rtnDate = year + '-' + month + '-' + day;
     return rtnDate;
 }
-const ParseData = (brandInfoData, profileData) => {
+const ParseData = async (brandInfoData, profileData) => {
     var brandID = brandInfoData.brandID;
     var rtnData = {};
     console.log('parsing data');
