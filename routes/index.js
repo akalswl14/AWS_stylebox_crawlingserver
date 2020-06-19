@@ -12,7 +12,7 @@ router.get('/firstcrawling', function (req, res) {
         res.send({ type: 'error', error: err });
     }
 });
-router.post('/downloadfeed', function (req, res) {
+router.post('/downloadfeed', async function (req, res) {
     console.log('downloading feed!');
     console.log(req.body);
     let dbData = await checkLastUpdateDateTable();
