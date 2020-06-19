@@ -5,6 +5,8 @@ var Crawling = require('./crawling');
 var MakeDownload = require('./MakeDownloadJson');
 
 router.get('/firstcrawling', function (req, res) {
+    res.header("Access-Control-Allow-Origin", "http://ec2-54-255-199-236.ap-southeast-1.compute.amazonaws.com");
+    res.header("Access-Control-Allow-Headers", "*");
     try {
         Crawling.runcrawling(req, res);
     } catch (err) {
@@ -18,7 +20,7 @@ router.post('/downloadfeed', async function (req, res) {
     let dbData = await checkLastUpdateDateTable();
     if (dbData.Item.crawlingstatus == true) {
         res.redirect('http://ec2-54-255-199-236.ap-southeast-1.compute.amazonaws.com:8080/');
-    }else {
+    } else {
         MakeDownload.makejson(req, res);
     }
 });
