@@ -5,8 +5,6 @@ var Crawling = require('./crawling');
 var MakeDownload = require('./MakeDownloadJson');
 
 router.get('/firstcrawling', function (req, res) {
-    res.header("Access-Control-Allow-Origin", "http://ec2-54-255-199-236.ap-southeast-1.compute.amazonaws.com");
-    res.header("Access-Control-Allow-Headers", "*");
     try {
         Crawling.runcrawling(req, res);
     } catch (err) {
