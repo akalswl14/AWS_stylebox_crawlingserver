@@ -229,7 +229,9 @@ const ParseData = async (brandInfoData, profileData) => {
         }
         inputData.push(tmp);
     }
-    await batchwriteCrawlingFeedTable(inputData);
+    if(inputData.length > 0){
+        await batchwriteCrawlingFeedTable(inputData);
+    }
     return rtnData;
 }
 const Scroll = async (instaId, accountNum, LastLoginNum, page) => {
