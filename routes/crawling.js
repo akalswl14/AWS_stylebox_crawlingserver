@@ -7,6 +7,7 @@ var UpdateDate = require('./UpdateDate');
 var baseUrl = 'https://www.instagram.com/';
 const puppeteer = require('puppeteer');
 var SelectAccount = require('./SelectAccount');
+var s3 = new AWS.S3();
 
 const init = async (req, res) => {
     var dbData = await getLastUpdateDateTable();
@@ -161,6 +162,20 @@ async function scanallBrandTable() {
         console.log(err);
     }
 }
+async function saveErrorimageStylebox(buffer,filename) {
+    try {
+        const bucketParams = {
+            Bucket: 'errorimage-stylebox',
+            Key: filename,
+            Body: buffer
+        };
+        let data = await s3.putObject(bucketParams).promise();
+        console.log("succeed!")
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
 const DateConversion = (date) => {
     var rtnDate = '';
     var year = date.getFullYear();
@@ -266,24 +281,18 @@ const Scroll = async (instaId, accountNum, LastLoginNum, page) => {
         } catch (error) {
             console.log('Cannot Login to Instagram');
             console.log(error);
-            await page.screenshot({
-                fullPage: true,
-                path: `public/img/crawling_screenshot/example_whynull_1.jpeg`
-            })
+            let buffer = await page.screenshot({ fullPage: true });
+            let filename = 'example_whynull_1.jpeg'
+            await saveErrorimageStylebox(buffer,filename);
             await page.goto(url);
             await page.waitFor(5000);
             var element = await page.$('body > pre');
-            await page.screenshot({
-                fullPage: true,
-                path: `public/img/crawling_screenshot/example_whynull_2.jpeg`
-            })
+            buffer = await page.screenshot({ fullPage: true });
+            filename = 'example_whynull_2.jpeg'
+            await saveErrorimageStylebox(buffer,filename);
             return {}
         }
     }
-    await page.screenshot({
-        fullPage: true,
-        path: `public/img/crawling_screenshot/example_afterlogin.jpeg`
-    })
     var json_data = await page.evaluate(element => element.textContent, element);
     json_data = JSON.parse(json_data);
     return json_data
