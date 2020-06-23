@@ -74,7 +74,7 @@ const init = async (ReqJsonData, res) => {
     await uploadExcel(DownloadNum);
     var willSendthis = await DownloadZip();
     await updateLastUpdateDateTable(false);
-    await update_downloadnum_LastUpdateDateTable(DownloadNum);
+    await update_downloadnum_LastUpdateDateTable(DownloadNum+1);
     await UpdateDate.update_downloaddate();
     res.set('Content-Type','application/octet-stream');
     res.set('Content-Disposition','attachment; filename=DownloadData.zip');
