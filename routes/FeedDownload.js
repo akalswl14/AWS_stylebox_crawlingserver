@@ -46,10 +46,10 @@ const init = async (ReqJsonData, res) => {
         console.log(JsonData.hasOwnProperty(['graphql']));
         dbData = await getCrawlingFeedTable(EachUrl);
         var CrawlingData = dbData.Item;
-        var brandID = dbData.brandID;
+        var brandID = CrawlingData.brandID;
         dbData = await getBrandInfoTable(brandID);
         var BrandInfoData = dbData.Item;
-        var instaID = dbData.instaID;
+        var instaID = BrandInfoData.instaID;
         if (JsonData.hasOwnProperty(['graphql']) && JsonData['graphql'].hasOwnProperty('shortcode_media') && JsonData['graphql']['shortcode_media']['owner']['username'] == instaID) {
             var tmpPicList = await ParseData(EachUrl, BrandInfoData, JsonData);
             PictureIdList = PictureIdList.concat(tmpPicList);
@@ -67,8 +67,8 @@ const init = async (ReqJsonData, res) => {
     await browser.close();
 
 
-    var excelHandler = MakeExcelData(PictureIdList);
-    MakeExcel(excelHandler);
+    var ExcelDataList = MakeExcelData(PictureIdList);
+    MakeExcel(ExcelDataList);
     await new Promise(resolve => setTimeout(resolve, 5000));
     await uploadExcel(DownloadNum);
     var willSendthis = DownloadZip();
@@ -96,7 +96,7 @@ const DateConversion = (date) => {
     var rtnDate = year + '-' + month + '-' + day;
     return rtnDate;
 }
-const ParseData = async (FeedId, BrandInfoData, ReqContData, JsonData) => {
+const ParseData = async (FeedId, BrandInfoData, JsonData) => {
     var brandName = BrandInfoData.brandName;
     var ReqContData = RequestJsonData[FeedId];
     var FeedData = {}
@@ -109,7 +109,7 @@ const ParseData = async (FeedId, BrandInfoData, ReqContData, JsonData) => {
     FeedData['Text'] = JsonData['graphql']['shortcode_media']['edge_media_to_caption']['edges'][0]['node']['text'];
     FeedData['LikeNum'] = JsonData['graphql']['shortcode_media']['edge_media_preview_like']['count'];
     FeedData['brandName'] = brandName;
-    FeedData['FeedID'] = EachUrl;
+    FeedData['FeedID'] = FeedId;
     var is_video = JsonData['graphql']['shortcode_media']['is_video'];
     // igtv / One video
     if (is_video == true) {
@@ -127,7 +127,7 @@ const ParseData = async (FeedId, BrandInfoData, ReqContData, JsonData) => {
             Len_ContJson = JsonData['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'].length;
             for (var j = 0; j < Len_ContJson; j++) {
                 if (ReqContData.includes(String(j + 1))) {
-                    var filename = BrandName + '_' + FeedId + '_' + 'Contents_' + String(j + 1);
+                    var filename = brandName + '_' + FeedId + '_' + 'Contents_' + String(j + 1);
                     if (JsonData['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'][j]['node']['is_video']) {
                         // for Video
                         var ContUrl = JsonData['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'][j]['node']['video_url'];
@@ -163,6 +163,10 @@ const Scroll = async (EachUrl, accountNum, LastLoginNum, page) => {
     await page.goto(url);
     await page.waitFor(5000);
     var element = await page.$('body > pre');
+    await page.waitFor(5000);
+    let buffer = await page.screenshot({ fullPage: true });
+    let filename = 'confirm_element.jpeg'
+    await saveErrorimageStylebox(buffer, filename);
     if (element == null) {
         console.log('Login to instagram')
         var accoutinfo = await SelectAccount.selectaccount(accountNum, LastLoginNum);
@@ -183,6 +187,10 @@ const Scroll = async (EachUrl, accountNum, LastLoginNum, page) => {
             await page.waitFor(5000);
             await page.goto(url);
             element = await page.$('body > pre');
+            await page.waitFor(5000);
+            buffer = await page.screenshot({ fullPage: true });
+            filename = 'Afterlogin.jpeg'
+            await saveErrorimageStylebox(buffer, filename);
         } catch (error) {
             console.log('Cannot Login to Instagram');
             console.log(error);
@@ -192,13 +200,13 @@ const Scroll = async (EachUrl, accountNum, LastLoginNum, page) => {
             await page.goto(url);
             await page.waitFor(5000);
             var element = await page.$('body > pre');
+            await page.waitFor(5000);
             buffer = await page.screenshot({ fullPage: true });
             filename = 'example_whynull_2.jpeg'
             await saveErrorimageStylebox(buffer, filename);
             return {}
         }
     }
-    await page.waitFor(5000);
     try{
         var json_data = await page.evaluate(element => element.textContent, element);
         json_data = JSON.parse(json_data);
@@ -229,30 +237,21 @@ const MakeExcelData = async (PictureIdList) => {
         tmpList.push(DownloadData.Text);
         ExcelDataList.push(tmpList);
     }
-
-    var excelHandler = {
-        getExcelFileName: function () {
-            return 'DownloadCrawling.xlsx';
-        },
-        getSheetName: function () {
-            return 'DownloadData';
-        },
-        getExcelData: function () {
-            return ExcelDataList;
-        },
-        getWorksheet: function () {
-            return XLSX.utils.aoa_to_sheet(this.getExcelData());
-        }
-    }
-    return excelHandler
+    return ExcelDataList
 }
-const MakeExcel = (excelHandler) => {
+const MakeExcel = (ExcelDataList) => {
     console.log('MakeExcel');
+    var excelHandler = {
+        getExcelFileName:'DownloadCrawling.xlsx',
+        getSheetName:'DownloadData',
+        getExcelData:ExcelDataList,
+        getWorksheet: XLSX.utils.aoa_to_sheet(ExcelDataList)
+    }
     var wb = XLSX.utils.book_new();
-    var newWorksheet = excelHandler.getWorksheet();
-    wb.SheetNames.push(excelHandler.getSheetName());
-    wb.Sheets[excelHandler.getSheetName()] = newWorksheet;
-    XLSX.writeFile(wb, excelHandler.getExcelFileName());
+    var newWorksheet = excelHandler.getWorksheet;
+    wb.SheetNames.push(excelHandler.getSheetName)
+    wb.Sheets[excelHandler.getSheetName] = newWorksheet;
+    XLSX.writeFile(wb, excelHandler.getExcelFileName;
 }
 const DownloadZip = async () => {
     // var zip = new AdmZip();
