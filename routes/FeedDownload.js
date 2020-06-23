@@ -362,7 +362,7 @@ async function clearDownloadDataTable() {
         var dbData = await scanallDownloadDataTable();
         dbData = dbData.Items;
         var inputData = [];
-        for (i = 0; i < Object.keys(inputData).length; i++) {
+        for (i = 0; i < Object.keys(dbData).length; i++) {
             var tmp = {
                 DeleteReqeust: {
                     FeedID: dbData[i].FeedID
