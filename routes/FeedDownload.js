@@ -26,7 +26,7 @@ const init = async (ReqJsonData, res) => {
     var DownloadNum = dbData.DownloadNum;
     await updateLastUpdateDateTable(true);
     var TodatyDate = DateConversion(new Date());
-    if(dbData.lastdownloaddate != TodatyDate){
+    if (dbData.lastdownloaddate != TodatyDate) {
         await clearBucket('downloaddata-stylebox');
         await clearDownloadDataTable();
         await update_downloadnum_LastUpdateDateTable();
@@ -42,7 +42,7 @@ const init = async (ReqJsonData, res) => {
         console.log('for문')
         var EachUrl = FeedUrlList[i];
         console.log(EachUrl);
-        var JsonData = await Scroll(EachUrl,accountNum, LastLoginNum, page);
+        var JsonData = await Scroll(EachUrl, accountNum, LastLoginNum, page);
         console.log(JsonData.hasOwnProperty(['graphql']));
         dbData = await getCrawlingFeedTable(EachUrl);
         var CrawlingData = dbData.Item;
@@ -157,7 +157,7 @@ const ParseData = async (FeedId, BrandInfoData, ReqContData, JsonData) => {
     }
     return PictureIdList;
 }
-const Scroll = async (EachUrl,accountNum, LastLoginNum, page) => {
+const Scroll = async (EachUrl, accountNum, LastLoginNum, page) => {
     console.log('Scroll')
     url = baseUrl + '/p/' + EachUrl + '?__a=1';
     await page.goto(url);
@@ -188,13 +188,13 @@ const Scroll = async (EachUrl,accountNum, LastLoginNum, page) => {
             console.log(error);
             let buffer = await page.screenshot({ fullPage: true });
             let filename = 'example_whynull_1.jpeg'
-            await saveErrorimageStylebox(buffer,filename);
+            await saveErrorimageStylebox(buffer, filename);
             await page.goto(url);
             await page.waitFor(5000);
             var element = await page.$('body > pre');
             buffer = await page.screenshot({ fullPage: true });
             filename = 'example_whynull_2.jpeg'
-            await saveErrorimageStylebox(buffer,filename);
+            await saveErrorimageStylebox(buffer, filename);
             return {}
         }
     }
@@ -205,9 +205,9 @@ const Scroll = async (EachUrl,accountNum, LastLoginNum, page) => {
 const MakeExcelData = async (PictureIdList) => {
     console.log('MakeExcelData');
     var ColumnNameList = ['PictureID', 'FeedID', 'Date', 'brandName', 'ContentsNumber', 'ContentsUrl', 'LikeNum', 'HashTagList', 'Text'];
-    
+
     var ExcelDataList = [ColumnNameList];
-    for(var i=0;i<PictureIdList.length;i++){
+    for (var i = 0; i < PictureIdList.length; i++) {
         tmpList = [];
         var DownloadData = await getDownloadDataTable(PictureIdList[i]);
         tmpList.push(DownloadData.PictureID);
@@ -282,7 +282,7 @@ async function getfilebuffer(keyname) {
     let data = await s3.getObject(params).promise;
     return data.Body;
 }
-async function saveErrorimageStylebox(buffer,filename) {
+async function saveErrorimageStylebox(buffer, filename) {
     try {
         const bucketParams = {
             Bucket: 'errorimage-stylebox',
@@ -297,15 +297,15 @@ async function saveErrorimageStylebox(buffer,filename) {
     }
 }
 async function clearBucket(bucket) {
-    try{
-        let data = await s3.listObjects({Bucket: bucket}).promise();
+    try {
+        let data = await s3.listObjects({ Bucket: bucket }).promise();
         var items = data.Contents;
         for (var i = 0; i < items.length; i += 1) {
-            var deleteParams = {Bucket: bucket, Key: items[i].Key};
+            var deleteParams = { Bucket: bucket, Key: items[i].Key };
             data = await s3.deleteObject(deleteParams).promise();
             console.log(data);
         }
-    }catch(err){
+    } catch (err) {
         console.log(err);
     }
 }
@@ -358,14 +358,14 @@ async function uploadExcel(DownloadNum) {
     }
 }
 async function clearDownloadDataTable() {
-    try{
+    try {
         var dbData = await scanallDownloadDataTable();
         dbData = dbData.Items;
         var inputData = [];
-        for(i=0;i<Object.keys(inputData).length;i++){
+        for (i = 0; i < Object.keys(inputData).length; i++) {
             var tmp = {
-                DeleteReqeust : {
-                    FeedID : dbData[i].FeedID
+                DeleteReqeust: {
+                    FeedID: dbData[i].FeedID
                 }
             }
             inputData.push(tmp);
@@ -377,7 +377,7 @@ async function clearDownloadDataTable() {
         };
         let data = await docClient.batchWrite(params).promise();
         return data;
-    }catch(err){
+    } catch (err) {
         console.log("while clear DownloadData Table");
         console.log(err);
     }
@@ -411,7 +411,7 @@ async function updateLastUpdateDateTable(inputBool) {
         console.log(err);
     }
 }
-async function update_downloadnum_LastUpdateDateTable(){
+async function update_downloadnum_LastUpdateDateTable() {
     try {
         var params = {
             TableName: 'LastUpdateDate',
@@ -443,6 +443,20 @@ async function getBrandInfoTable(brandID) {
         console.log(err);
     }
 }
+async function getLastUpdateDateTable() {
+    try {
+        var params = {
+            TableName: 'LastUpdateDate',
+            Key: {
+                'No': 1
+            },
+        };
+        let data = await docClient.get(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
 async function getCrawlingFeedTable(FeedID) {
     try {
         var params = {
@@ -457,7 +471,7 @@ async function getCrawlingFeedTable(FeedID) {
         console.log(err);
     }
 }
-async function getDownloadDataTable(PictureID){
+async function getDownloadDataTable(PictureID) {
     try {
         var params = {
             TableName: 'DownloadData',
@@ -506,7 +520,7 @@ async function updateDownloadDataTable(FeedData) {
         console.log(err);
     }
 }
-async function updateBrandInfoTable(BrandInfoData){
+async function updateBrandInfoTable(BrandInfoData) {
     try {
         var params = {
             TableName: 'BrandInfo',
