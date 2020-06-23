@@ -30,8 +30,10 @@ const init = async (ReqJsonData, res) => {
     if (dbData.lastdownloaddate != TodatyDate) {
         await clearBucket('downloaddata-stylebox');
         await clearDownloadDataTable();
-        await update_downloadnum_LastUpdateDateTable(0);
-        DownloadNum = 0;
+        if(DownloadNum != 0){
+            await update_downloadnum_LastUpdateDateTable(0);
+            DownloadNum = 0;
+        }
     }
     var PictureIdList = [];
     RequestJsonData = ReqJsonData;
@@ -144,7 +146,7 @@ const ParseData = async (FeedId, BrandInfoData, JsonData) => {
         } else {
             //One Image
             var ContUrl = JsonData['graphql']['shortcode_media']['display_url'];
-            var filename = BrandName + '_' + FeedId + '_' + 'Contents_1';
+            var filename = brandName + '_' + FeedId + '_' + 'Contents_1';
             await DownloadContent(ContUrl, filename);
             FeedData['PictureID'] = filename;
             FeedData['ContentsNum'] = 'Contents_1';
@@ -306,6 +308,7 @@ async function saveErrorimageStylebox(buffer, filename) {
 }
 async function clearBucket(bucket) {
     try {
+        console.log("Clearing Bucket!");
         let data = await s3.listObjects({ Bucket: bucket }).promise();
         var items = data.Contents;
         for (var i = 0; i < items.length; i += 1) {
@@ -369,6 +372,7 @@ async function uploadExcel(DownloadNum) {
 }
 async function clearDownloadDataTable() {
     try {
+        console.log("Clearing DownloadDataTable!");
         var dbData = await scanallDownloadDataTable();
         dbData = dbData.Items;
         var inputData = [];
