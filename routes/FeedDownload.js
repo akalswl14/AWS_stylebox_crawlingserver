@@ -73,11 +73,14 @@ const init = async (ReqJsonData, res) => {
     await new Promise(resolve => setTimeout(resolve, 5000));
     await uploadExcel(DownloadNum);
     var willSendthis = await DownloadZip();
-    var readStream = new stream.PassThrough();
-    readStream.end(willSendthis);
-    res.set('Content-disposition', 'attachment; filename=' + 'DownloadData.zip');
-    res.set('Content-Type', 'application/octet-stream');
+    // var readStream = new stream.PassThrough();
+    // readStream.end(willSendthis);
+    // res.set('Content-disposition', 'attachment; filename=' + 'DownloadData.zip');
+    // res.set('Content-Type', 'application/octet-stream');
     await updateLastUpdateDateTable(false);
+    res.set('Content-Type','application/octet-stream');
+    res.set('Content-Disposition','attachment; filename=DownloadData.zip');
+    res.set('Content-Length',willSendthis.length);
     res.send(willSendthis);
     // readStream.pipe(res);
     // res.download(willSendthis,'DownloadData.zip');
