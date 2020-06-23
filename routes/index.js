@@ -3,6 +3,12 @@ var router = express.Router();
 
 var Crawling = require('./crawling');
 var MakeDownload = require('./MakeDownloadJson');
+var AWS = require('aws-sdk');
+AWS.config.update({
+    region: 'ap-southeast-1'
+})
+var s3 = new AWS.S3();
+
 
 router.get('/firstcrawling', function (req, res) {
     try {
@@ -42,38 +48,25 @@ module.exports = router;
 
 async function downloadzip(res) {
     var fs = require('fs')
-    const join = require('path').join
     const s3Zip = require('s3-zip')
-    const XmlStream = require('xml-stream')
-
-    const bucket = 'downloaddata-stylebox'
-    const folder = '/'
-    const params = {
-        Bucket: bucket,
-        Prefix: folder
+    var FileNameList = await getobjectList();
+    res.set('Content-disposition', 'attachment; filename=' + 'DownloadData.zip');
+    // res.set('Content-Type', 'application/octet-stream');
+    res.set('content-type', 'application/zip');
+    s3Zip
+        .archive({ region: 'ap-southeast-1', bucket: 'downloaddata-stylebox' }, '/', FileNameList)
+        .pipe(res)
+}
+async function getobjectList(){
+    var params = {
+        Bucket: "examplebucket",
+        MaxKeys: 2
+    };
+    let data = await s3.listObjectsV2(params).promise();
+    data = data.Contents;
+    var FileNameList = [];
+    for (var i = 0; i < data.length; i++) {
+        FileNameList.push(data[i].Key);
     }
-
-    const filesArray = []
-    const files = s3.listObjects(params).createReadStream()
-    const xml = new XmlStream(files)
-    xml.collect('Key')
-    xml.on('endElement: Key', function (item) {
-        filesArray.push(item['$text'].substr(folder.length))
-    })
-
-    xml
-        .on('end', function () {
-            zip(filesArray,res)
-        })
-
-    function zip(files,res) {
-        console.log(files)
-        const output = fs.createWriteStream(join(__dirname, 'use-s3-zip.zip'))
-        res.set('Content-disposition', 'attachment; filename=' + 'DownloadData.zip');
-        // res.set('Content-Type', 'application/octet-stream');
-        res.set('content-type', 'application/zip')
-        s3Zip
-            .archive({ bucket: bucket, preserveFolderStructure: true }, folder, files)
-            .pipe(res)
-    }
+    return FileNameList;
 }
