@@ -1,4 +1,5 @@
 var AWS = require('aws-sdk');
+var fs = require('fs');
 AWS.config.update({
     region: 'ap-southeast-1'
 })
@@ -71,7 +72,7 @@ const init = async (ReqJsonData, res) => {
     MakeExcel(ExcelDataList);
     await new Promise(resolve => setTimeout(resolve, 5000));
     await uploadExcel(DownloadNum);
-    var willSendthis = DownloadZip();
+    var willSendthis = await DownloadZip();
     var readStream = new stream.PassThrough();
     readStream.end(willSendthis);
     res.set('Content-disposition', 'attachment; filename=' + 'DownloadData.zip');
@@ -220,12 +221,14 @@ const Scroll = async (EachUrl, accountNum, LastLoginNum, page) => {
 }
 const MakeExcelData = async (PictureIdList) => {
     console.log('MakeExcelData');
+    console.log(PictureIdList);
     var ColumnNameList = ['PictureID', 'FeedID', 'Date', 'brandName', 'ContentsNumber', 'ContentsUrl', 'LikeNum', 'HashTagList', 'Text'];
 
     var ExcelDataList = [ColumnNameList];
     for (var i = 0; i < PictureIdList.length; i++) {
         tmpList = [];
         var DownloadData = await getDownloadDataTable(PictureIdList[i]);
+        DownloadData = DownloadData.Item;
         tmpList.push(DownloadData.PictureID);
         tmpList.push(DownloadData.FeedID);
         tmpList.push(DownloadData.Date);
@@ -246,7 +249,7 @@ const MakeExcel = (ExcelDataList) => {
     var newWorksheet = XLSX.utils.aoa_to_sheet(ExcelDataList);
     wb.SheetNames.push('DownloadData')
     wb.Sheets['DownloadData'] = newWorksheet;
-    XLSX.writeFile(wb, 'DownloadCrawling.xlsx');
+    XLSX.writeFile(wb, 'public/DownloadData/DownloadCrawling.xlsx');
 }
 const DownloadZip = async () => {
     // var zip = new AdmZip();
@@ -257,9 +260,10 @@ const DownloadZip = async () => {
     // return zip.toBuffer();
     var FileNameList = await getobjectList();
     var zip = new AdmZip();
-    for (var i = 0; i < FileNameList; i++) {
-        var keyname = FileName[i];
-        var filebuffer = await getfilebuffer(keyname);
+    for (var i = 0; i < FileNameList.length; i++) {
+        console.log(i);
+        var keyname = FileNameList[i];
+        let filebuffer = await getfilebuffer(keyname);
         zip.addFile(keyname, filebuffer);
     }
     return zip.toBuffer();
@@ -287,8 +291,8 @@ async function getfilebuffer(keyname) {
             Bucket: "downloaddata-stylebox",
             Key: keyname
         };
-        let data = await s3.getObject(params).promise;
-        return data.Body;
+        let data = await s3.getObject(params).promise();
+        return data.Body
     } catch (err) {
         console.log('whild get Body(filebuffer) from downloaddata-stylebox - S3');
         console.log(err);
@@ -362,7 +366,7 @@ async function uploadExcel(DownloadNum) {
         const bucketParams = {
             Bucket: 'downloaddata-stylebox',
             Key: filename,
-            Body: 'public/DownloadData/DownloadCrawling.xlsx'
+            Body: fs.createReadStream('public/DownloadData/DownloadCrawling.xlsx')
         };
         let data = await s3.putObject(bucketParams).promise();
         console.log("succeed!")
