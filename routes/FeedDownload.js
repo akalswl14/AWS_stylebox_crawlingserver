@@ -235,7 +235,7 @@ const MakeExcelData = async (PictureIdList) => {
         tmpList.push(DownloadData.Text);
         ExcelDataList.push(tmpList);
     }
-    console.log("Make ExcelDataList Successfully!" + ExcelDataList);
+    console.log("Make ExcelDataList Successfully!");
     return ExcelDataList
 }
 const MakeExcel = (ExcelDataList) => {
