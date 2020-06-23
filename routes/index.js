@@ -7,7 +7,7 @@ var AWS = require('aws-sdk');
 AWS.config.update({
     region: 'ap-southeast-1'
 })
-var s3 = new AWS.S3();
+var docClient = new AWS.DynamoDB.DocumentClient();
 
 router.get('/firstcrawling', function (req, res) {
     try {
