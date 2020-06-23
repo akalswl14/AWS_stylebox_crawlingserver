@@ -198,6 +198,7 @@ const Scroll = async (EachUrl, accountNum, LastLoginNum, page) => {
             return {}
         }
     }
+    await page.waitFor(5000);
     try{
         var json_data = await page.evaluate(element => element.textContent, element);
         json_data = JSON.parse(json_data);
