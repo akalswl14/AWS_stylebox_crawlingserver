@@ -34,7 +34,7 @@ var UpdateDate = {
             console.log(err);
         }
     },
-    update_downloaddate: async function (req, res) {
+    update_downloaddate: async function () {
         try {
             var params = {
                 TableName: 'LastUpdateDate',

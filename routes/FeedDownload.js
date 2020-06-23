@@ -75,7 +75,7 @@ const init = async (ReqJsonData, res) => {
     var willSendthis = await DownloadZip();
     await updateLastUpdateDateTable(false);
     await update_downloadnum_LastUpdateDateTable(DownloadNum);
-    await UpdateDate.update_downloaddate(req, res);
+    await UpdateDate.update_downloaddate();
     res.set('Content-Type','application/octet-stream');
     res.set('Content-Disposition','attachment; filename=DownloadData.zip');
     res.set('Content-Length',willSendthis.length);
@@ -309,7 +309,7 @@ async function saveErrorimageStylebox(buffer, filename) {
 async function clearBucket(bucket) {
     try {
         console.log("Clearing Bucket!");
-        let data = await s3.listObjects({ Bucket: bucket }).promise();
+        let data = await s3.listObjectsV2({ Bucket: bucket }).promise();
         var items = data.Contents;
         for (var i = 0; i < items.length; i += 1) {
             var deleteParams = { Bucket: bucket, Key: items[i].Key };
