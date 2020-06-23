@@ -24,7 +24,6 @@ var MakeDownloadRequest = {
             }
             json_data[key] = ValueList;
         }
-        // fs.writeFileSync('public/json/DownloadRequest.json', JSON.stringify(json_data), 'utf-8');
         downloadcrawling.runcrawling(json_data,res)
     }
 };

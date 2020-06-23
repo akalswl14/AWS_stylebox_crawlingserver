@@ -1,4 +1,10 @@
-var fs = require('fs');
+var AWS = require('aws-sdk');
+AWS.config.update({
+    region: 'ap-southeast-1'
+})
+var docClient = new AWS.DynamoDB.DocumentClient();
+var s3 = new AWS.S3();
+
 const puppeteer = require('puppeteer');
 var XLSX = require('xlsx');
 var request = require('request');
@@ -9,34 +15,25 @@ var SelectAccount = require('./SelectAccount');
 var RequestJsonData;
 
 const init = async (ReqJsonData, res) => {
-    var AvoidMultiReq = UpdateCrawlingStatus(true);
-    if (AvoidMultiReq == false) {
+    var dbData = await getLastUpdateDateTable();
+    dbData = dbData.Item;
+    if (dbData.crawlingstatus == true) {
         console.log('Crawling is already on. Cancel this request.');
-        res.redirect('/');
         return;
-    } else if (AvoidMultiReq[0] ==true && AvoidMultiReq[1]==false) {
-        var path = 'public/DownloadData/';
-        var DownloadJsonData = {}
-        if (fs.existsSync(path)) {
-            fs.readdirSync(path).forEach(function (file, index) {
-                var curPath = path + "/" + file;
-                if (fs.lstatSync(curPath).isDirectory()) {
-                    deleteFolderRecursive(curPath);
-                } else {
-                    fs.unlinkSync(curPath);
-                }
-            });
-            fs.rmdirSync(path);
-            console.log('remove folder')
-        }
-        fs.mkdirSync(path);
-        console.log('make folder')
-    } else {
-        var DownloadJsonData = GetDownloadDataJson();
     }
+    var accountNum = dbData.accountNum;
+    var LastLoginNum = dbData.LastLoginNum;
+    var DownloadNum = dbData.DownloadNum;
+    await updateLastUpdateDateTable(true);
+    var TodatyDate = DateConversion(new Date());
+    if(dbData.lastdownloaddate != TodatyDate){
+        await clearBucket('downloaddata-stylebox');
+        await clearDownloadDataTable();
+        await update_downloadnum_LastUpdateDateTable();
+        DownloadNum = 0;
+    }
+    var PictureIdList = [];
     RequestJsonData = ReqJsonData;
-    var BrandData = GetBrandList();
-    var CrawlingData = GetCrawlingFeedJson();
     var FeedUrlList = Object.keys(RequestJsonData);
     var Len_UrlList = FeedUrlList.length;
     const browser = await puppeteer.launch();
@@ -45,90 +42,45 @@ const init = async (ReqJsonData, res) => {
         console.log('for문')
         var EachUrl = FeedUrlList[i];
         console.log(EachUrl);
-        var JsonData = await Scroll(EachUrl, page);
+        var JsonData = await Scroll(EachUrl,accountNum, LastLoginNum, page);
         console.log(JsonData.hasOwnProperty(['graphql']));
-        var BrandName = CrawlingData[EachUrl]['brand']
-        if (JsonData.hasOwnProperty(['graphql']) && JsonData['graphql'].hasOwnProperty('shortcode_media') && JsonData['graphql']['shortcode_media']['owner']['username'] == BrandData[BrandName]['instaID']) {
-            var FeedData = ParseData(EachUrl, BrandName, RequestJsonData[EachUrl], JsonData);
+        dbData = await getCrawlingFeedTable(EachUrl);
+        var CrawlingData = dbData.Item;
+        var brandID = dbData.brandID;
+        dbData = await getBrandInfoTable(brandID);
+        var BrandInfoData = dbData.Item;
+        var instaID = dbData.instaID;
+        if (JsonData.hasOwnProperty(['graphql']) && JsonData['graphql'].hasOwnProperty('shortcode_media') && JsonData['graphql']['shortcode_media']['owner']['username'] == instaID) {
+            var tmpPicList = await ParseData(EachUrl, BrandInfoData, JsonData);
+            PictureIdList = PictureIdList.concat(tmpPicList);
             for (var j = 0; j < RequestJsonData[EachUrl].length; j++) {
                 tmp = 'Contents_' + String(j + 1);
-                CrawlingData[EachUrl]['Contents'][tmp] += 1
+                CrawlingData.Contents[tmp] += 1;
             }
-            CrawlingData[EachUrl]['DownloadNum'] += 1
-            BrandData[BrandName]['TodayDownloadNum'] += 1
-            BrandData[BrandName]['DownloadNum'] += 1
-            FeedData['Brand'] = BrandName;
-            DownloadJsonData[EachUrl] = FeedData;
+            CrawlingData.DownloadNum += 1;
+            BrandInfoData.TodayDownloadNum += 1;
+            BrandInfoData.DownloadNum += 1;
         }
+        await updateBrandInfoTable(BrandInfoData);
+        await updateCrawlingFeedTable(CrawlingData);
     }
-    UpdateBrandJson(BrandData);
-    UpdateCrawlingFeedJson(CrawlingData);
-    UpdateDownloadDataJson(DownloadJsonData);
     await browser.close();
-    var excelHandler = MakeExcelData()
+
+
+    var excelHandler = MakeExcelData(PictureIdList);
     MakeExcel(excelHandler);
     await new Promise(resolve => setTimeout(resolve, 5000));
+    await uploadExcel(DownloadNum);
     var willSendthis = DownloadZip();
-    // res.redirect('/');
     var readStream = new stream.PassThrough();
     readStream.end(willSendthis);
     res.set('Content-disposition', 'attachment; filename=' + 'DownloadData.zip');
     res.set('Content-Type', 'application/octet-stream');
-    UpdateCrawlingStatus(false);
+    await updateLastUpdateDateTable(false);
     res.send(willSendthis);
     // readStream.pipe(res);
     // res.download(willSendthis,'DownloadData.zip');
 };
-const GetDownloadDataJson = () => {
-    console.log('GetDownloadDataJson')
-    const DataBuffer = fs.readFileSync('public/json/DownloadData.json');
-    var JsonData = JSON.parse(DataBuffer.toString());
-    return JsonData;
-};
-const GetBrandList = () => {
-    console.log('GetBrandList')
-    const DataBuffer = fs.readFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/brand.json');
-    var JsonData = JSON.parse(DataBuffer.toString());
-    return JsonData;
-};
-const GetCrawlingFeedJson = () => {
-    console.log('GetCrawlingJson')
-    const DataBuffer = fs.readFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/CrawlingFeed.json');
-    var JsonData = JSON.parse(DataBuffer.toString());
-    return JsonData;
-}
-const UpdateDownloadDataJson = (JsonData) => {
-    console.log('UpdateDownloadDataJson')
-    fs.writeFileSync('public/json/DownloadData.json', JSON.stringify(JsonData), 'utf-8');
-};
-const UpdateBrandJson = (JsonData) => {
-    console.log('UpdateBrandList')
-    fs.writeFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/brand.json', JSON.stringify(JsonData), 'utf-8');
-}
-const UpdateCrawlingFeedJson = (JsonData) => {
-    console.log('UpdateCrawlingJson')
-    fs.writeFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/CrawlingFeed.json', JSON.stringify(JsonData), 'utf-8');
-}
-const UpdateCrawlingStatus = (status) => {
-    console.log('Update CrawlingStatus');
-    var json_data = JSON.parse(fs.readFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/LastUpdateDate.json').toString());
-    if (json_data['crawlingstatus'] == true && status == true) {
-        return false;
-    } else {
-        json_data['crawlingstatus'] = status;
-        var TodatyDate = DateConversion(new Date());
-        var jsonDate = json_data['lastdownloaddate'];
-        json_data['lastdownloaddate'] = TodatyDate;
-        console.log("JSON DATE is "+jsonDate);
-        fs.writeFileSync('/Users/maminji/development/Stylebox_ManageWeb/public/json/LastUpdateDate.json', JSON.stringify(json_data), 'utf-8');
-        if (jsonDate == TodatyDate) {
-            return [true, true];
-        } else {
-            return [true, false];
-        }
-
-    }
-}
 const DateConversion = (date) => {
     var rtnDate = '';
     var year = date.getFullYear();
@@ -144,24 +96,31 @@ const DateConversion = (date) => {
     var rtnDate = year + '-' + month + '-' + day;
     return rtnDate;
 }
-const ParseData = (FeedId, BrandName, ReqContData, JsonData) => {
+const ParseData = async (FeedId, BrandInfoData, ReqContData, JsonData) => {
+    var brandName = BrandInfoData.brandName;
+    var ReqContData = RequestJsonData[FeedId];
     var FeedData = {}
+    var PictureIdList = [];
     console.log('parsing data');
     console.log(JsonData['graphql']['shortcode_media']['owner']['username'])
     var PostTimeStamp = JsonData['graphql']['shortcode_media']['taken_at_timestamp'];
     FeedData['Date'] = DateConversion(new Date(PostTimeStamp * 1000));
-    FeedData['TagList'] = ''
-    FeedData['Text'] = JsonData['graphql']['shortcode_media']['edge_media_to_caption']['edges'][0]['node']['text']
-    FeedData['LikeNum'] = JsonData['graphql']['shortcode_media']['edge_media_preview_like']['count']
-    var is_video = JsonData['graphql']['shortcode_media']['is_video']
-    var ContentsList = {}
+    FeedData['TagList'] = '';
+    FeedData['Text'] = JsonData['graphql']['shortcode_media']['edge_media_to_caption']['edges'][0]['node']['text'];
+    FeedData['LikeNum'] = JsonData['graphql']['shortcode_media']['edge_media_preview_like']['count'];
+    FeedData['brandName'] = brandName;
+    FeedData['FeedID'] = EachUrl;
+    var is_video = JsonData['graphql']['shortcode_media']['is_video'];
     // igtv / One video
     if (is_video == true) {
         var ContUrl = JsonData['graphql']['shortcode_media']['video_url'];
-        var filename = BrandName + '_' + FeedId + '_' + 'Contents_1';
-        ContentsList[filename] = ContUrl;
-        var DownloadPath = 'public/DownloadData/' + filename
-        DownloadOnLocal(ContUrl, DownloadPath)
+        var filename = brandName + '_' + FeedId + '_' + 'Contents_1';
+        await DownloadContent(ContUrl, filename);
+        FeedData['PictureID'] = filename;
+        FeedData['ContentsNum'] = 'Contents_1';
+        FeedData['ContentsUrl'] = ContUrl;
+        await updateDownloadDataTable(FeedData);
+        PictureIdList.push(filename);
     } else {
         // Multiple Images / Multiple Videos / Multiple Images and Videos
         if (JsonData['graphql']['shortcode_media'].hasOwnProperty('edge_sidecar_to_children')) {
@@ -172,29 +131,33 @@ const ParseData = (FeedId, BrandName, ReqContData, JsonData) => {
                     if (JsonData['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'][j]['node']['is_video']) {
                         // for Video
                         var ContUrl = JsonData['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'][j]['node']['video_url'];
-                        ContentsList[filename] = ContUrl;
                     } else {
                         // for Image
                         var ContUrl = JsonData['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'][j]['node']['display_url'];
-                        ContentsList[filename] = ContUrl
                     }
-                    var DownloadPath = 'public/DownloadData/' + filename;
-                    DownloadOnLocal(ContUrl, DownloadPath)
+                    await DownloadContent(ContUrl, filename);
+                    FeedData['PictureID'] = filename;
+                    FeedData['ContentsNum'] = 'Contents_' + String(j + 1);
+                    FeedData['ContentsUrl'] = ContUrl;
+                    await updateDownloadDataTable(FeedData);
+                    PictureIdList.push(filename);
                 }
             }
         } else {
             //One Image
             var ContUrl = JsonData['graphql']['shortcode_media']['display_url'];
             var filename = BrandName + '_' + FeedId + '_' + 'Contents_1';
-            ContentsList[filename] = ContUrl;
-            var DownloadPath = 'public/DownloadData/' + filename;
-            DownloadOnLocal(ContUrl, DownloadPath)
+            await DownloadContent(ContUrl, filename);
+            FeedData['PictureID'] = filename;
+            FeedData['ContentsNum'] = 'Contents_1';
+            FeedData['ContentsUrl'] = ContUrl;
+            await updateDownloadDataTable(FeedData);
+            PictureIdList.push(filename);
         }
     }
-    FeedData['Contents'] = ContentsList;
-    return FeedData;
+    return PictureIdList;
 }
-const Scroll = async (EachUrl, page) => {
+const Scroll = async (EachUrl,accountNum, LastLoginNum, page) => {
     console.log('Scroll')
     url = baseUrl + '/p/' + EachUrl + '?__a=1';
     await page.goto(url);
@@ -202,7 +165,7 @@ const Scroll = async (EachUrl, page) => {
     var element = await page.$('body > pre');
     if (element == null) {
         console.log('Login to instagram')
-        var accoutinfo = SelectAccount.selectaccount();
+        var accoutinfo = await SelectAccount.selectaccount(accountNum, LastLoginNum);
         console.log("ID is " + accoutinfo[0]);
         console.log("PW is " + accoutinfo[1]);
         const insta_id = accoutinfo[0];
@@ -215,6 +178,7 @@ const Scroll = async (EachUrl, page) => {
             await page.waitForSelector('input[name="username"]');
             await page.type('input[name="username"]', insta_id);
             await page.type('input[name="password"]', insta_pw);
+            await page.waitFor(1000);
             await page.click('button[type="submit"]');
             await page.waitFor(5000);
             await page.goto(url);
@@ -222,17 +186,15 @@ const Scroll = async (EachUrl, page) => {
         } catch (error) {
             console.log('Cannot Login to Instagram');
             console.log(error);
-            await page.screenshot({
-                fullPage: true,
-                path: `public/img/crawling_screenshot/example_whynull_1.jpeg`
-            })
+            let buffer = await page.screenshot({ fullPage: true });
+            let filename = 'example_whynull_1.jpeg'
+            await saveErrorimageStylebox(buffer,filename);
             await page.goto(url);
             await page.waitFor(5000);
             var element = await page.$('body > pre');
-            await page.screenshot({
-                fullPage: true,
-                path: `public/img/crawling_screenshot/example_whynull_2.jpeg`
-            })
+            buffer = await page.screenshot({ fullPage: true });
+            filename = 'example_whynull_2.jpeg'
+            await saveErrorimageStylebox(buffer,filename);
             return {}
         }
     }
@@ -240,42 +202,29 @@ const Scroll = async (EachUrl, page) => {
     json_data = JSON.parse(json_data);
     return json_data
 }
-const MakeExcelData = () => {
+const MakeExcelData = async (PictureIdList) => {
     console.log('MakeExcelData');
-    var ColumnNameList = ['PictureId', 'FeedId', 'Date', 'Brand', 'ContentsNumber', 'ContentsUrl', 'LikeNum', 'HashTagList', 'Text'];
-    var DownloadJsonData = GetDownloadDataJson();
-    var KeyList = Object.keys(RequestJsonData);
+    var ColumnNameList = ['PictureID', 'FeedID', 'Date', 'brandName', 'ContentsNumber', 'ContentsUrl', 'LikeNum', 'HashTagList', 'Text'];
+    
     var ExcelDataList = [ColumnNameList];
-    for (var i = 0; i < KeyList.length; i++) {
-        var EachKey = KeyList[i];
-        var ContNumList = Object.keys(DownloadJsonData[EachKey]['Contents']);
-        for (var j = 0; j < ContNumList.length; j++) {
-            var EachContKey = ContNumList[j];
-            tmpList = [];
-            tmpList.push(EachContKey);
-            tmpList.push(EachKey);
-            tmpList.push(DownloadJsonData[EachKey]['Date']);
-            tmpList.push(DownloadJsonData[EachKey]['Brand']);
-            tmpList.push('Contents_' + (j + 1));
-            tmpList.push(DownloadJsonData[EachKey]['Contents'][EachContKey]);
-            tmpList.push(DownloadJsonData[EachKey]['LikeNum']);
-            tmpList.push(DownloadJsonData[EachKey]['TagList']);
-            tmpList.push(DownloadJsonData[EachKey]['Text']);
-            ExcelDataList.push(tmpList);
-        }
+    for(var i=0;i<PictureIdList.length;i++){
+        tmpList = [];
+        var DownloadData = await getDownloadDataTable(PictureIdList[i]);
+        tmpList.push(DownloadData.PictureID);
+        tmpList.push(DownloadData.FeedID);
+        tmpList.push(DownloadData.Date);
+        tmpList.push(DownloadData.brandName);
+        tmpList.push(DownloadData.ContentsNum);
+        tmpList.push(DownloadData.ContentsUrl);
+        tmpList.push(DownloadData.LikeNum);
+        tmpList.push(DownloadData.TagList);
+        tmpList.push(DownloadData.Text);
+        ExcelDataList.push(tmpList);
     }
-    var files = fs.readdirSync('public/DownloadData');
-    var cnt = 1;
-    while (true) {
-        if (files.includes('DownloadCrawling_' + cnt + '.xlsx')) {
-            cnt++;
-        } else {
-            break;
-        }
-    }
+
     var excelHandler = {
         getExcelFileName: function () {
-            return 'public/DownloadData/DownloadCrawling_' + cnt + '.xlsx';
+            return 'DownloadCrawling.xlsx';
         },
         getSheetName: function () {
             return 'DownloadData';
@@ -297,25 +246,312 @@ const MakeExcel = (excelHandler) => {
     wb.Sheets[excelHandler.getSheetName()] = newWorksheet;
     XLSX.writeFile(wb, excelHandler.getExcelFileName());
 }
-const DownloadOnLocal = (url, path) => {
-    if (url.indexOf('.mp4') != -1) {
-        // Download Video
-        path += '.mp4'
-    } else {
-        // Download Image
-        path += '.jpg'
-    }
-    request(url).pipe(fs.createWriteStream(path));
-}
 const DownloadZip = () => {
+    // var zip = new AdmZip();
+    // var files = fs.readdirSync('public/DownloadData');
+    // for (var i = 0; i < files.length; i++) {
+    //     zip.addLocalFile('public/DownloadData/' + files[i]);
+    // }
+    // return zip.toBuffer();
+    var FileNameList = await getobjectList();
     var zip = new AdmZip();
-    var files = fs.readdirSync('public/DownloadData');
-    for (var i = 0; i < files.length; i++) {
-        zip.addLocalFile('public/DownloadData/' + files[i]);
+    for (var i = 0; i < FileNameList; i++) {
+        var keyname = FileName[i];
+        var filebuffer = await getfilebuffer(keyname);
+        zip.addFile(keyname, filebuffer);
     }
     return zip.toBuffer();
 }
-
+async function getobjectList() {
+    var params = {
+        Bucket: "downloaddata-stylebox",
+    };
+    let data = await s3.listObjectsV2(params).promise();
+    data = data.Contents;
+    var FileNameList = [];
+    for (var i = 0; i < data.length; i++) {
+        FileNameList.push(data[i].Key);
+    }
+    return FileNameList;
+}
+async function getfilebuffer(keyname) {
+    var params = {
+        Bucket: "downloaddata-stylebox",
+        Key: keyname
+    };
+    let data = await s3.getObject(params).promise;
+    return data.Body;
+}
+async function saveErrorimageStylebox(buffer,filename) {
+    try {
+        const bucketParams = {
+            Bucket: 'errorimage-stylebox',
+            Key: filename,
+            Body: buffer
+        };
+        let data = await s3.putObject(bucketParams).promise();
+        console.log("succeed!")
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function clearBucket(bucket) {
+    try{
+        let data = await s3.listObjects({Bucket: bucket}).promise();
+        var items = data.Contents;
+        for (var i = 0; i < items.length; i += 1) {
+            var deleteParams = {Bucket: bucket, Key: items[i].Key};
+            data = await s3.deleteObject(deleteParams).promise();
+            console.log(data);
+        }
+    }catch(err){
+        console.log(err);
+    }
+}
+async function DownloadContent(uri, path) {
+    try {
+        var options = {
+            uri: uri,
+            encoding: null
+        };
+        if (uri.indexOf('.mp4') != -1) {
+            // Download Video
+            path += '.mp4'
+        } else {
+            // Download Image
+            path += '.jpg'
+        }
+        request(options, function (error, response, body) {
+            if (error || response.statusCode !== 200) {
+                console.log("failed to get image");
+                console.log(error);
+            } else {
+                let data = s3.putObject({
+                    Body: body,
+                    Key: path,
+                    Bucket: 'downloaddata-stylebox'
+                }).promise();
+                console.log("Successfully Download content!" + data);
+                return data;
+            }
+        });
+    } catch (err) {
+        console.log('while download content');
+        console.log(err);
+    }
+}
+async function uploadExcel(DownloadNum) {
+    try {
+        DownloadNum += 1
+        var filename = 'DownloadCrawling_' + DownloadNum + '.xlsx';
+        const bucketParams = {
+            Bucket: 'errorimage-stylebox',
+            Key: filename,
+            Body: 'public/DownloadData/DownloadCrawling.xlsx'
+        };
+        let data = await s3.putObject(bucketParams).promise();
+        console.log("succeed!")
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function clearDownloadDataTable() {
+    try{
+        var dbData = await scanallDownloadDataTable();
+        dbData = dbData.Items;
+        var inputData = [];
+        for(i=0;i<Object.keys(inputData).length;i++){
+            var tmp = {
+                DeleteReqeust : {
+                    FeedID : dbData[i].FeedID
+                }
+            }
+            inputData.push(tmp);
+        }
+        var params = {
+            RequestItems: {
+                'DownloadData': inputData
+            }
+        };
+        let data = await docClient.batchWrite(params).promise();
+        return data;
+    }catch(err){
+        console.log("while clear DownloadData Table");
+        console.log(err);
+    }
+}
+async function scanallDownloadDataTable() {
+    try {
+        var params = {
+            TableName: 'DownloadData',
+        };
+        let data = await docClient.scan(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function updateLastUpdateDateTable(inputBool) {
+    try {
+        var params = {
+            TableName: 'LastUpdateDate',
+            Key: {
+                "No": 1
+            },
+            UpdateExpression: 'set crawlingstatus = :cs',
+            ExpressionAttributeValues: {
+                ':cs': inputBool
+            }
+        };
+        let data = await docClient.update(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function update_downloadnum_LastUpdateDateTable(){
+    try {
+        var params = {
+            TableName: 'LastUpdateDate',
+            Key: {
+                "No": 1
+            },
+            UpdateExpression: 'set DownloadNum = :DN',
+            ExpressionAttributeValues: {
+                ':DN': 0
+            }
+        };
+        let data = await docClient.update(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function getBrandInfoTable(brandID) {
+    try {
+        var params = {
+            TableName: 'BrandInfo',
+            Key: {
+                'brandID': brandID
+            },
+        };
+        let data = await docClient.get(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function getCrawlingFeedTable(FeedID) {
+    try {
+        var params = {
+            TableName: 'CrawlingFeed',
+            Key: {
+                'FeedID': FeedID
+            },
+        };
+        let data = await docClient.get(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function getDownloadDataTable(PictureID){
+    try {
+        var params = {
+            TableName: 'DownloadData',
+            Key: {
+                'PictureID': PictureID
+            },
+        };
+        let data = await docClient.get(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function updateDownloadDataTable(FeedData) {
+    try {
+        var params = {
+            TableName: 'DownloadData',
+            Key: {
+                "PictureID": FeedData.PictureID
+            },
+            ExpressionAttributeNames: {
+                "#fID": "FeedID",
+                "#DT": "Date",
+                "#BN": "brandName",
+                "#CN": "ContentsNum",
+                "#CU": "ContentsUrl",
+                "#LN": "LikeNum",
+                "#TL": "TagList",
+                "#TX": "Text"
+            },
+            UpdateExpression: 'set #fID = :fid,#DT = :dt,#BN = :bn,#CN = :cn,#CU = :cu,#LN = :ln,#TL = :tl,#TX = :tx',
+            ExpressionAttributeValues: {
+                ':fid': FeedData.FeedID,
+                ':dt': FeedData.Date,
+                ':bn': FeedData.brandName,
+                ':cn': FeedData.ContentsNum,
+                ':cu': FeedData.ContentsUrl,
+                ':ln': FeedData.LikeNum,
+                ':tl': FeedData.TagList,
+                ':tx': FeedData.Text
+            }
+        };
+        let data = await docClient.update(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function updateBrandInfoTable(BrandInfoData){
+    try {
+        var params = {
+            TableName: 'BrandInfo',
+            Key: {
+                "brandID": BrandInfoData.brandID
+            },
+            ExpressionAttributeNames: {
+                "#TDN": "TodayDownloadNum",
+                "#DN": "DownloadNum"
+            },
+            UpdateExpression: 'set #TDN = :tdn,#DN = :dn',
+            ExpressionAttributeValues: {
+                ':tdn': BrandInfoData.TodayDownloadNum,
+                ':dn': BrandInfoData.DownloadNum
+            }
+        };
+        let data = await docClient.update(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
+async function updateCrawlingFeedTable(CrawlingData) {
+    try {
+        var params = {
+            TableName: 'CrawlingFeed',
+            Key: {
+                "FeedID": CrawlingData.FeedID
+            },
+            ExpressionAttributeNames: {
+                "#C": "Contents",
+                "#DN": "DownloadNum"
+            },
+            UpdateExpression: 'set #C = :c,#DN = :dn',
+            ExpressionAttributeValues: {
+                ':c': CrawlingData.Contents,
+                ':dn': CrawlingData.DownloadNum
+            }
+        };
+        let data = await docClient.update(params).promise();
+        return data;
+    } catch (err) {
+        console.log(err);
+    }
+}
 var downloadcrawling = {
     runcrawling: function (ReqJsonData, res) {
         init(ReqJsonData, res);
