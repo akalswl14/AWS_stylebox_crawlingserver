@@ -378,8 +378,10 @@ async function clearDownloadDataTable() {
         var inputData = [];
         for (i = 0; i < Object.keys(dbData).length; i++) {
             var tmp = {
-                DeleteReqeust: {
-                    PictureID: dbData[i].PictureID
+                DeleteRequest: {
+                    Key: {
+                        PictureID: dbData[i].PictureID
+                    }
                 }
             }
             inputData.push(tmp);
