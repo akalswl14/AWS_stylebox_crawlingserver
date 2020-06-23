@@ -263,24 +263,34 @@ const DownloadZip = async () => {
     return zip.toBuffer();
 }
 async function getobjectList() {
-    var params = {
-        Bucket: "downloaddata-stylebox",
-    };
-    let data = await s3.listObjectsV2(params).promise();
-    data = data.Contents;
-    var FileNameList = [];
-    for (var i = 0; i < data.length; i++) {
-        FileNameList.push(data[i].Key);
+    try {
+        var params = {
+            Bucket: "downloaddata-stylebox",
+        };
+        let data = await s3.listObjectsV2(params).promise();
+        data = data.Contents;
+        var FileNameList = [];
+        for (var i = 0; i < data.length; i++) {
+            FileNameList.push(data[i].Key);
+        }
+        return FileNameList;
+    } catch (err) {
+        console.log('while get objectlist from downloaddata-stylebox Bucket - S3');
+        console.log(err);
     }
-    return FileNameList;
 }
 async function getfilebuffer(keyname) {
-    var params = {
-        Bucket: "downloaddata-stylebox",
-        Key: keyname
-    };
-    let data = await s3.getObject(params).promise;
-    return data.Body;
+    try {
+        var params = {
+            Bucket: "downloaddata-stylebox",
+            Key: keyname
+        };
+        let data = await s3.getObject(params).promise;
+        return data.Body;
+    } catch (err) {
+        console.log('whild get Body(filebuffer) from downloaddata-stylebox - S3');
+        console.log(err);
+    }
 }
 async function saveErrorimageStylebox(buffer, filename) {
     try {
@@ -293,6 +303,7 @@ async function saveErrorimageStylebox(buffer, filename) {
         console.log("succeed!")
         return data;
     } catch (err) {
+        console.log('while saving ErrorImage from errorimage-stylebox - S3');
         console.log(err);
     }
 }
@@ -306,6 +317,7 @@ async function clearBucket(bucket) {
             console.log(data);
         }
     } catch (err) {
+        console.log('whild clear Bucket - S3');
         console.log(err);
     }
 }
@@ -346,7 +358,7 @@ async function uploadExcel(DownloadNum) {
         DownloadNum += 1
         var filename = 'DownloadCrawling_' + DownloadNum + '.xlsx';
         const bucketParams = {
-            Bucket: 'errorimage-stylebox',
+            Bucket: 'downloaddata-stylebox',
             Key: filename,
             Body: 'public/DownloadData/DownloadCrawling.xlsx'
         };
@@ -354,6 +366,7 @@ async function uploadExcel(DownloadNum) {
         console.log("succeed!")
         return data;
     } catch (err) {
+        console.log('while uploading excel to downloaddata-stylebox Bucket - S3');
         console.log(err);
     }
 }
@@ -390,6 +403,7 @@ async function scanallDownloadDataTable() {
         let data = await docClient.scan(params).promise();
         return data;
     } catch (err) {
+        console.log('while scanning DownloadData Table - DYNAMODB');
         console.log(err);
     }
 }
@@ -408,6 +422,7 @@ async function updateLastUpdateDateTable(inputBool) {
         let data = await docClient.update(params).promise();
         return data;
     } catch (err) {
+        console.log('While updating crawlingstatus on LastUpdateDate Table - DYNAMODB');
         console.log(err);
     }
 }
@@ -426,6 +441,7 @@ async function update_downloadnum_LastUpdateDateTable() {
         let data = await docClient.update(params).promise();
         return data;
     } catch (err) {
+        console.log('while updating downloadnum on LastUpdateDate Table - DYNAMODB');
         console.log(err);
     }
 }
@@ -440,6 +456,7 @@ async function getBrandInfoTable(brandID) {
         let data = await docClient.get(params).promise();
         return data;
     } catch (err) {
+        console.log('while getting data on BrandInfo Table - DYNAMODB');
         console.log(err);
     }
 }
@@ -454,6 +471,7 @@ async function getLastUpdateDateTable() {
         let data = await docClient.get(params).promise();
         return data;
     } catch (err) {
+        console.log('while getting data on LastUpdateDate Table - DYNAMODB');
         console.log(err);
     }
 }
@@ -468,6 +486,7 @@ async function getCrawlingFeedTable(FeedID) {
         let data = await docClient.get(params).promise();
         return data;
     } catch (err) {
+        console.log('while getting data from CrawlingFeed Table - DYNAMODB');
         console.log(err);
     }
 }
@@ -482,6 +501,7 @@ async function getDownloadDataTable(PictureID) {
         let data = await docClient.get(params).promise();
         return data;
     } catch (err) {
+        console.log('while getting data on DownloadData Table - DYNAMODB');
         console.log(err);
     }
 }
@@ -517,6 +537,7 @@ async function updateDownloadDataTable(FeedData) {
         let data = await docClient.update(params).promise();
         return data;
     } catch (err) {
+        console.log('while updating data on DownloadData Table - DYNAMODB');
         console.log(err);
     }
 }
@@ -540,6 +561,7 @@ async function updateBrandInfoTable(BrandInfoData) {
         let data = await docClient.update(params).promise();
         return data;
     } catch (err) {
+        console.log('while updating data on BrandInfo Table - DYNAMODB');
         console.log(err);
     }
 }
@@ -563,6 +585,7 @@ async function updateCrawlingFeedTable(CrawlingData) {
         let data = await docClient.update(params).promise();
         return data;
     } catch (err) {
+        console.log('while updating data on CrawlingFeed Table - DYNAMODB');
         console.log(err);
     }
 }
