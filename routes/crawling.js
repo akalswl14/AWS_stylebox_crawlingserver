@@ -274,7 +274,6 @@ const Scroll = async (instaId, accountNum, LastLoginNum, page) => {
             await page.type('input[name="password"]', insta_pw);
             await page.waitFor(1000);
             await page.click('button[type="submit"]');
-
             await page.waitFor(5000);
             await page.goto(url);
             element = await page.$('body > pre');
