@@ -10,7 +10,6 @@ const puppeteer = require('puppeteer');
 var XLSX = require('xlsx');
 var request = require('request');
 var AdmZip = require('adm-zip');
-var stream = require('stream');
 var baseUrl = 'https://www.instagram.com/';
 var SelectAccount = require('./SelectAccount');
 var RequestJsonData;
@@ -30,7 +29,7 @@ const init = async (ReqJsonData, res) => {
     if (dbData.lastdownloaddate != TodatyDate) {
         await clearBucket('downloaddata-stylebox');
         await clearDownloadDataTable();
-        await update_downloadnum_LastUpdateDateTable();
+        await update_downloadnum_LastUpdateDateTable(0);
         DownloadNum = 0;
     }
     var PictureIdList = [];
@@ -66,24 +65,17 @@ const init = async (ReqJsonData, res) => {
         await updateCrawlingFeedTable(CrawlingData);
     }
     await browser.close();
-
-
     var ExcelDataList = await MakeExcelData(PictureIdList);
     MakeExcel(ExcelDataList);
     await new Promise(resolve => setTimeout(resolve, 5000));
     await uploadExcel(DownloadNum);
     var willSendthis = await DownloadZip();
-    // var readStream = new stream.PassThrough();
-    // readStream.end(willSendthis);
-    // res.set('Content-disposition', 'attachment; filename=' + 'DownloadData.zip');
-    // res.set('Content-Type', 'application/octet-stream');
     await updateLastUpdateDateTable(false);
+    await update_downloadnum_LastUpdateDateTable(DownloadNum);
     res.set('Content-Type','application/octet-stream');
     res.set('Content-Disposition','attachment; filename=DownloadData.zip');
     res.set('Content-Length',willSendthis.length);
     res.send(willSendthis);
-    // readStream.pipe(res);
-    // res.download(willSendthis,'DownloadData.zip');
 };
 const DateConversion = (date) => {
     var rtnDate = '';
@@ -255,12 +247,6 @@ const MakeExcel = (ExcelDataList) => {
     XLSX.writeFile(wb, 'public/DownloadData/DownloadCrawling.xlsx');
 }
 const DownloadZip = async () => {
-    // var zip = new AdmZip();
-    // var files = fs.readdirSync('public/DownloadData');
-    // for (var i = 0; i < files.length; i++) {
-    //     zip.addLocalFile('public/DownloadData/' + files[i]);
-    // }
-    // return zip.toBuffer();
     var FileNameList = await getobjectList();
     var zip = new AdmZip();
     for (var i = 0; i < FileNameList.length; i++) {
@@ -435,7 +421,7 @@ async function updateLastUpdateDateTable(inputBool) {
         console.log(err);
     }
 }
-async function update_downloadnum_LastUpdateDateTable() {
+async function update_downloadnum_LastUpdateDateTable(inputData) {
     try {
         var params = {
             TableName: 'LastUpdateDate',
@@ -444,7 +430,7 @@ async function update_downloadnum_LastUpdateDateTable() {
             },
             UpdateExpression: 'set DownloadNum = :DN',
             ExpressionAttributeValues: {
-                ':DN': 0
+                ':DN': inputData
             }
         };
         let data = await docClient.update(params).promise();
