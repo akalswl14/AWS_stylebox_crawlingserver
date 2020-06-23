@@ -12,6 +12,7 @@ var request = require('request');
 var AdmZip = require('adm-zip');
 var baseUrl = 'https://www.instagram.com/';
 var SelectAccount = require('./SelectAccount');
+var UpdateDate = require('./UpdateDate');
 var RequestJsonData;
 
 const init = async (ReqJsonData, res) => {
@@ -72,6 +73,7 @@ const init = async (ReqJsonData, res) => {
     var willSendthis = await DownloadZip();
     await updateLastUpdateDateTable(false);
     await update_downloadnum_LastUpdateDateTable(DownloadNum);
+    await UpdateDate.update_downloaddate(req, res);
     res.set('Content-Type','application/octet-stream');
     res.set('Content-Disposition','attachment; filename=DownloadData.zip');
     res.set('Content-Length',willSendthis.length);

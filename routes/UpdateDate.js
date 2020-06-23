@@ -33,6 +33,24 @@ var UpdateDate = {
         } catch (err) {
             console.log(err);
         }
+    },
+    update_downloaddate: async function (req, res) {
+        try {
+            var params = {
+                TableName: 'LastUpdateDate',
+                Key: {
+                    "No": 1
+                },
+                UpdateExpression: 'set lastdownloaddate = :ldd',
+                ExpressionAttributeValues: {
+                    ':ldd': TodayDate
+                }
+            };
+            let data = await docClient.update(params).promise();
+            return data;
+        } catch (err) {
+            console.log(err);
+        }
     }
 
 };
