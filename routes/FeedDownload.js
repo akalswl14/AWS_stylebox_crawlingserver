@@ -198,9 +198,16 @@ const Scroll = async (EachUrl, accountNum, LastLoginNum, page) => {
             return {}
         }
     }
-    var json_data = await page.evaluate(element => element.textContent, element);
-    json_data = JSON.parse(json_data);
-    return json_data
+    try{
+        var json_data = await page.evaluate(element => element.textContent, element);
+        json_data = JSON.parse(json_data);
+        return json_data
+    }catch(err){
+        console.log('while parse data from puppeteer crawling working');
+        buffer = await page.screenshot({ fullPage: true });
+        filename = 'whynull_afterlogin.jpeg'
+        await saveErrorimageStylebox(buffer, filename);
+    }
 }
 const MakeExcelData = async (PictureIdList) => {
     console.log('MakeExcelData');
