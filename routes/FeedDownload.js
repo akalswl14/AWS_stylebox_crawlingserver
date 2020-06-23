@@ -246,7 +246,7 @@ const MakeExcel = (excelHandler) => {
     wb.Sheets[excelHandler.getSheetName()] = newWorksheet;
     XLSX.writeFile(wb, excelHandler.getExcelFileName());
 }
-const DownloadZip = () => {
+const DownloadZip = async () => {
     // var zip = new AdmZip();
     // var files = fs.readdirSync('public/DownloadData');
     // for (var i = 0; i < files.length; i++) {
