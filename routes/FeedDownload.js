@@ -379,7 +379,7 @@ async function clearDownloadDataTable() {
         for (i = 0; i < Object.keys(dbData).length; i++) {
             var tmp = {
                 DeleteReqeust: {
-                    FeedID: dbData[i].FeedID
+                    PictureID: dbData[i].PictureID
                 }
             }
             inputData.push(tmp);
