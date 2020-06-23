@@ -67,7 +67,7 @@ const init = async (ReqJsonData, res) => {
     await browser.close();
 
 
-    var ExcelDataList = MakeExcelData(PictureIdList);
+    var ExcelDataList = await MakeExcelData(PictureIdList);
     MakeExcel(ExcelDataList);
     await new Promise(resolve => setTimeout(resolve, 5000));
     await uploadExcel(DownloadNum);
@@ -237,21 +237,16 @@ const MakeExcelData = async (PictureIdList) => {
         tmpList.push(DownloadData.Text);
         ExcelDataList.push(tmpList);
     }
+    console.log("Make ExcelDataList Successfully!" + ExcelDataList);
     return ExcelDataList
 }
 const MakeExcel = (ExcelDataList) => {
     console.log('MakeExcel');
-    var excelHandler = {
-        getExcelFileName:'DownloadCrawling.xlsx',
-        getSheetName:'DownloadData',
-        getExcelData:ExcelDataList,
-        getWorksheet: XLSX.utils.aoa_to_sheet(ExcelDataList)
-    }
     var wb = XLSX.utils.book_new();
-    var newWorksheet = excelHandler.getWorksheet;
-    wb.SheetNames.push(excelHandler.getSheetName)
-    wb.Sheets[excelHandler.getSheetName] = newWorksheet;
-    XLSX.writeFile(wb, excelHandler.getExcelFileName;
+    var newWorksheet = XLSX.utils.aoa_to_sheet(ExcelDataList);
+    wb.SheetNames.push('DownloadData')
+    wb.Sheets['DownloadData'] = newWorksheet;
+    XLSX.writeFile(wb, 'DownloadCrawling.xlsx');
 }
 const DownloadZip = async () => {
     // var zip = new AdmZip();
