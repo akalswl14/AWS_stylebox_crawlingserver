@@ -11,6 +11,9 @@ var s3 = new AWS.S3();
 
 const init = async (req, res) => {
     var dbData = await getLastUpdateDateTable();
+    if (dbData == false) {
+        return;
+    }
     dbData = dbData.Item;
     if (dbData.crawlingstatus == true) {
         console.log('Crawling is already on. Cancel this request.');
@@ -18,8 +21,16 @@ const init = async (req, res) => {
     }
     var accountNum = dbData.accountNum;
     var LastLoginNum = dbData.LastLoginNum;
-    await updateLastUpdateDateTable(true);
+    dbData = await updateLastUpdateDateTable(true);
+    if (dbData == false) {
+        await updateLastUpdateDateTable(false);
+        return;
+    }
     var dbData = await scanallBrandTable();
+    if (dbData == false) {
+        await updateLastUpdateDateTable(false);
+        return;
+    }
     var BrandList = dbData.Items;
     var brandLength = Object.keys(BrandList).length;
     const browser = await puppeteer.launch();
@@ -31,14 +42,34 @@ const init = async (req, res) => {
         // NewFeedNum, UpdateFeedNum, FollowerNum, Feed information, etc scraping
         console.log(BrandList[i].brandName);
         var profileData = await Scroll(BrandList[i].instaID, accountNum, LastLoginNum, page);
+        if (profileData == false) {
+            await updateLastUpdateDateTable(false);
+            await browser.close();
+            return;
+        }
         console.log(profileData.hasOwnProperty(['graphql']));
         while (profileData.hasOwnProperty(['graphql']) && profileData['graphql'].hasOwnProperty('user') && profileData['graphql']['user']['username'] != BrandList[i].instaID) {
             profileData = await Scroll(BrandList[i].instaID, accountNum, LastLoginNum, page);
+            if (profileData == false) {
+                await updateLastUpdateDateTable(false);
+                await browser.close();
+                return;
+            }
         }
         dbData = await getBrandInfoTable(BrandList[i].brandID);
+        if (dbData == false) {
+            await updateLastUpdateDateTable(false);
+            await browser.close();
+            return;
+        }
         var brandInfoData = dbData.Item;
         if (profileData.hasOwnProperty(['graphql']) && profileData['graphql'].hasOwnProperty('user')) {
             rtnData = ParseData(brandInfoData, profileData);
+            if (rtnData == false) {
+                await updateLastUpdateDateTable(false);
+                await browser.close();
+                return;
+            }
         } else {
             if (brandInfoData.ReviewStatus == 'Y') {
                 console.log("init_ELSE ; Change UpdateFeedNum")
@@ -51,11 +82,16 @@ const init = async (req, res) => {
         rtnData.TodayDownloadNum = 0;
         rtnData.Comment = "";
         rtnData = Object.assign(brandInfoData, rtnData);
-        await updateBrandInfoTable(rtnData);
+        dbData = await updateBrandInfoTable(rtnData);
+        if (dbData == false) {
+            await updateLastUpdateDateTable(false);
+            await browser.close();
+            return;
+        }
     }
     await browser.close();
     await updateLastUpdateDateTable(false);
-    await UpdateDate.update_date(req, res);
+    await UpdateDate.update_date();
 };
 async function getLastUpdateDateTable() {
     try {
@@ -69,6 +105,7 @@ async function getLastUpdateDateTable() {
         return data;
     } catch (err) {
         console.log(err);
+        return false;
     }
 }
 async function getBrandInfoTable(brandID) {
@@ -83,6 +120,7 @@ async function getBrandInfoTable(brandID) {
         return data;
     } catch (err) {
         console.log(err);
+        return false;
     }
 }
 async function updateLastUpdateDateTable(inputBool) {
@@ -101,6 +139,7 @@ async function updateLastUpdateDateTable(inputBool) {
         return data;
     } catch (err) {
         console.log(err);
+        return false;
     }
 }
 async function updateBrandInfoTable(inputData) {
@@ -136,6 +175,7 @@ async function updateBrandInfoTable(inputData) {
         return data;
     } catch (err) {
         console.log(err);
+        return false;
     }
 }
 async function batchwriteCrawlingFeedTable(inputData) {
@@ -149,6 +189,7 @@ async function batchwriteCrawlingFeedTable(inputData) {
         return data;
     } catch (err) {
         console.log(err);
+        return false;
     }
 }
 async function scanallBrandTable() {
@@ -160,9 +201,10 @@ async function scanallBrandTable() {
         return data;
     } catch (err) {
         console.log(err);
+        return false;
     }
 }
-async function saveErrorimageStylebox(buffer,filename) {
+async function saveErrorimageStylebox(buffer, filename) {
     try {
         const bucketParams = {
             Bucket: 'errorimage-stylebox',
@@ -244,8 +286,11 @@ const ParseData = async (brandInfoData, profileData) => {
         }
         inputData.push(tmp);
     }
-    if(inputData.length > 0){
-        await batchwriteCrawlingFeedTable(inputData);
+    if (inputData.length > 0) {
+        var tmprtn = await batchwriteCrawlingFeedTable(inputData);
+        if (tmprtn == false) {
+            return false;
+        }
     }
     return rtnData;
 }
@@ -282,23 +327,22 @@ const Scroll = async (instaId, accountNum, LastLoginNum, page) => {
             console.log(error);
             let buffer = await page.screenshot({ fullPage: true });
             let filename = 'example_whynull_1.jpeg'
-            await saveErrorimageStylebox(buffer,filename);
-            await page.goto(url);
-            await page.waitFor(5000);
-            var element = await page.$('body > pre');
-            buffer = await page.screenshot({ fullPage: true });
-            filename = 'example_whynull_2.jpeg'
-            await saveErrorimageStylebox(buffer,filename);
-            return {}
+            await saveErrorimageStylebox(buffer, filename);
+            return false;
         }
     }
-    var json_data = await page.evaluate(element => element.textContent, element);
-    json_data = JSON.parse(json_data);
-    return json_data
+    try {
+        var json_data = await page.evaluate(element => element.textContent, element);
+        json_data = JSON.parse(json_data);
+        return json_data
+    } catch (err) {
+        console.log("While evalute json data : " + err);
+        return false;
+    }
 }
 var crawling = {
-    runcrawling: function (req, res) {
-        init(req, res);
+    runcrawling: function () {
+        init();
     }
 };
 module.exports = crawling;

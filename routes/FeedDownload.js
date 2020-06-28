@@ -17,6 +17,10 @@ var RequestJsonData;
 
 const init = async (ReqJsonData, res) => {
     var dbData = await getLastUpdateDateTable();
+    if (dbData == false) {
+        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        return;
+    }
     dbData = dbData.Item;
     if (dbData.crawlingstatus == true) {
         console.log('Crawling is already on. Cancel this request.');
@@ -25,13 +29,33 @@ const init = async (ReqJsonData, res) => {
     var accountNum = dbData.accountNum;
     var LastLoginNum = dbData.LastLoginNum;
     var DownloadNum = dbData.DownloadNum;
-    await updateLastUpdateDateTable(true);
+    var tmprtn = await updateLastUpdateDateTable(true);
+    if (tmprtn == false) {
+        await updateLastUpdateDateTable(false);
+        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        return;
+    }
     var TodatyDate = DateConversion(new Date());
     if (dbData.lastdownloaddate != TodatyDate) {
-        await clearBucket('downloaddata-stylebox');
-        await clearDownloadDataTable();
-        if(DownloadNum != 0){
-            await update_downloadnum_LastUpdateDateTable(0);
+        var tmprtn = await clearBucket('downloaddata-stylebox');
+        if (tmprtn == false) {
+            await updateLastUpdateDateTable(false);
+            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            return;
+        }
+        var tmprtn = await clearDownloadDataTable();
+        if (tmprtn == false) {
+            await updateLastUpdateDateTable(false);
+            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            return;
+        }
+        if (DownloadNum != 0) {
+            var tmprtn = await update_downloadnum_LastUpdateDateTable(0);
+            if (tmprtn == false) {
+                await updateLastUpdateDateTable(false);
+                res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+                return;
+            }
             DownloadNum = 0;
         }
     }
@@ -46,15 +70,39 @@ const init = async (ReqJsonData, res) => {
         var EachUrl = FeedUrlList[i];
         console.log(EachUrl);
         var JsonData = await Scroll(EachUrl, accountNum, LastLoginNum, page);
+        if (JsonData == false) {
+            await updateLastUpdateDateTable(false);
+            await browser.close();
+            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            return;
+        }
         console.log(JsonData.hasOwnProperty(['graphql']));
         dbData = await getCrawlingFeedTable(EachUrl);
+        if (dbData == false) {
+            await updateLastUpdateDateTable(false);
+            await browser.close();
+            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            return;
+        }
         var CrawlingData = dbData.Item;
         var brandID = CrawlingData.brandID;
         dbData = await getBrandInfoTable(brandID);
+        if (dbData == false) {
+            await updateLastUpdateDateTable(false);
+            await browser.close();
+            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            return;
+        }
         var BrandInfoData = dbData.Item;
         var instaID = BrandInfoData.instaID;
         if (JsonData.hasOwnProperty(['graphql']) && JsonData['graphql'].hasOwnProperty('shortcode_media') && JsonData['graphql']['shortcode_media']['owner']['username'] == instaID) {
             var tmpPicList = await ParseData(EachUrl, BrandInfoData, JsonData);
+            if (tmpPicList == false) {
+                await updateLastUpdateDateTable(false);
+                await browser.close();
+                res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+                return;
+            }
             PictureIdList = PictureIdList.concat(tmpPicList);
             for (var j = 0; j < RequestJsonData[EachUrl].length; j++) {
                 tmp = 'Contents_' + String(j + 1);
@@ -64,21 +112,51 @@ const init = async (ReqJsonData, res) => {
             BrandInfoData.TodayDownloadNum += 1;
             BrandInfoData.DownloadNum += 1;
         }
-        await updateBrandInfoTable(BrandInfoData);
-        await updateCrawlingFeedTable(CrawlingData);
+        tmprtn = await updateBrandInfoTable(BrandInfoData);
+        if (tmprtn == false) {
+            await updateLastUpdateDateTable(false);
+            await browser.close();
+            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            return;
+        }
+        tmprtn = await updateCrawlingFeedTable(CrawlingData);
+        if (tmprtn == false) {
+            await updateLastUpdateDateTable(false);
+            await browser.close();
+            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            return;
+        }
     }
     await browser.close();
     var ExcelDataList = await MakeExcelData(PictureIdList);
+    if (ExcelDataList == false) {
+        await updateLastUpdateDateTable(false);
+        await browser.close();
+        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        return;
+    }
     MakeExcel(ExcelDataList);
     await new Promise(resolve => setTimeout(resolve, 5000));
-    await uploadExcel(DownloadNum);
+    tmprtn = await uploadExcel(DownloadNum);
+    if (tmprtn == false) {
+        await updateLastUpdateDateTable(false);
+        await browser.close();
+        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        return;
+    }
     var willSendthis = await DownloadZip();
+    if (willSendthis == false) {
+        await updateLastUpdateDateTable(false);
+        await browser.close();
+        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        return;
+    }
     await updateLastUpdateDateTable(false);
-    await update_downloadnum_LastUpdateDateTable(DownloadNum+1);
+    await update_downloadnum_LastUpdateDateTable(DownloadNum + 1);
     await UpdateDate.update_downloaddate();
-    res.set('Content-Type','application/octet-stream');
-    res.set('Content-Disposition','attachment; filename=DownloadData.zip');
-    res.set('Content-Length',willSendthis.length);
+    res.set('Content-Type', 'application/octet-stream');
+    res.set('Content-Disposition', 'attachment; filename=DownloadData.zip');
+    res.set('Content-Length', willSendthis.length);
     res.send(willSendthis);
 };
 const DateConversion = (date) => {
@@ -119,7 +197,10 @@ const ParseData = async (FeedId, BrandInfoData, JsonData) => {
         FeedData['PictureID'] = filename;
         FeedData['ContentsNum'] = 'Contents_1';
         FeedData['ContentsUrl'] = ContUrl;
-        await updateDownloadDataTable(FeedData);
+        var tmprtn = await updateDownloadDataTable(FeedData);
+        if (tmprtn == false) {
+            return false;
+        }
         PictureIdList.push(filename);
     } else {
         // Multiple Images / Multiple Videos / Multiple Images and Videos
@@ -135,11 +216,17 @@ const ParseData = async (FeedId, BrandInfoData, JsonData) => {
                         // for Image
                         var ContUrl = JsonData['graphql']['shortcode_media']['edge_sidecar_to_children']['edges'][j]['node']['display_url'];
                     }
-                    await DownloadContent(ContUrl, filename);
+                    var tmprtn = await DownloadContent(ContUrl, filename);
+                    if (tmprtn == false) {
+                        return false;
+                    }
                     FeedData['PictureID'] = filename;
                     FeedData['ContentsNum'] = 'Contents_' + String(j + 1);
                     FeedData['ContentsUrl'] = ContUrl;
-                    await updateDownloadDataTable(FeedData);
+                    var tmprtn = await updateDownloadDataTable(FeedData);
+                    if (tmprtn == false) {
+                        return false;
+                    }
                     PictureIdList.push(filename);
                 }
             }
@@ -151,7 +238,10 @@ const ParseData = async (FeedId, BrandInfoData, JsonData) => {
             FeedData['PictureID'] = filename;
             FeedData['ContentsNum'] = 'Contents_1';
             FeedData['ContentsUrl'] = ContUrl;
-            await updateDownloadDataTable(FeedData);
+            var tmprtn = await updateDownloadDataTable(FeedData);
+            if (tmprtn == false) {
+                return false;
+            }
             PictureIdList.push(filename);
         }
     }
@@ -197,25 +287,19 @@ const Scroll = async (EachUrl, accountNum, LastLoginNum, page) => {
             let buffer = await page.screenshot({ fullPage: true });
             let filename = 'example_whynull_1.jpeg'
             await saveErrorimageStylebox(buffer, filename);
-            await page.goto(url);
-            await page.waitFor(5000);
-            var element = await page.$('body > pre');
-            await page.waitFor(5000);
-            buffer = await page.screenshot({ fullPage: true });
-            filename = 'example_whynull_2.jpeg'
-            await saveErrorimageStylebox(buffer, filename);
-            return {}
+            return false;
         }
     }
-    try{
+    try {
         var json_data = await page.evaluate(element => element.textContent, element);
         json_data = JSON.parse(json_data);
         return json_data
-    }catch(err){
+    } catch (err) {
         console.log('while parse data from puppeteer crawling working');
         buffer = await page.screenshot({ fullPage: true });
         filename = 'whynull_afterlogin.jpeg'
         await saveErrorimageStylebox(buffer, filename);
+        return false;
     }
 }
 const MakeExcelData = async (PictureIdList) => {
@@ -227,6 +311,9 @@ const MakeExcelData = async (PictureIdList) => {
     for (var i = 0; i < PictureIdList.length; i++) {
         tmpList = [];
         var DownloadData = await getDownloadDataTable(PictureIdList[i]);
+        if (DownloadData == false) {
+            return false;
+        }
         DownloadData = DownloadData.Item;
         tmpList.push(DownloadData.PictureID);
         tmpList.push(DownloadData.FeedID);
@@ -252,11 +339,17 @@ const MakeExcel = (ExcelDataList) => {
 }
 const DownloadZip = async () => {
     var FileNameList = await getobjectList();
+    if (FileNameList == false) {
+        return false;
+    }
     var zip = new AdmZip();
     for (var i = 0; i < FileNameList.length; i++) {
         console.log(i);
         var keyname = FileNameList[i];
         let filebuffer = await getfilebuffer(keyname);
+        if (filebuffer == false) {
+            return false;
+        }
         zip.addFile(keyname, filebuffer);
     }
     return zip.toBuffer();
@@ -276,6 +369,7 @@ async function getobjectList() {
     } catch (err) {
         console.log('while get objectlist from downloaddata-stylebox Bucket - S3');
         console.log(err);
+        return false;
     }
 }
 async function getfilebuffer(keyname) {
@@ -289,6 +383,7 @@ async function getfilebuffer(keyname) {
     } catch (err) {
         console.log('whild get Body(filebuffer) from downloaddata-stylebox - S3');
         console.log(err);
+        return false;
     }
 }
 async function saveErrorimageStylebox(buffer, filename) {
@@ -319,6 +414,7 @@ async function clearBucket(bucket) {
     } catch (err) {
         console.log('whild clear Bucket - S3');
         console.log(err);
+        return false;
     }
 }
 async function DownloadContent(uri, path) {
@@ -351,6 +447,7 @@ async function DownloadContent(uri, path) {
     } catch (err) {
         console.log('while download content');
         console.log(err);
+        return false;
     }
 }
 async function uploadExcel(DownloadNum) {
@@ -368,6 +465,7 @@ async function uploadExcel(DownloadNum) {
     } catch (err) {
         console.log('while uploading excel to downloaddata-stylebox Bucket - S3');
         console.log(err);
+        return false;
     }
 }
 async function clearDownloadDataTable() {
@@ -396,6 +494,7 @@ async function clearDownloadDataTable() {
     } catch (err) {
         console.log("while clear DownloadData Table");
         console.log(err);
+        return false;
     }
 }
 async function scanallDownloadDataTable() {
@@ -408,6 +507,7 @@ async function scanallDownloadDataTable() {
     } catch (err) {
         console.log('while scanning DownloadData Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 async function updateLastUpdateDateTable(inputBool) {
@@ -427,6 +527,7 @@ async function updateLastUpdateDateTable(inputBool) {
     } catch (err) {
         console.log('While updating crawlingstatus on LastUpdateDate Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 async function update_downloadnum_LastUpdateDateTable(inputData) {
@@ -446,6 +547,7 @@ async function update_downloadnum_LastUpdateDateTable(inputData) {
     } catch (err) {
         console.log('while updating downloadnum on LastUpdateDate Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 async function getBrandInfoTable(brandID) {
@@ -461,6 +563,7 @@ async function getBrandInfoTable(brandID) {
     } catch (err) {
         console.log('while getting data on BrandInfo Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 async function getLastUpdateDateTable() {
@@ -476,6 +579,7 @@ async function getLastUpdateDateTable() {
     } catch (err) {
         console.log('while getting data on LastUpdateDate Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 async function getCrawlingFeedTable(FeedID) {
@@ -491,6 +595,7 @@ async function getCrawlingFeedTable(FeedID) {
     } catch (err) {
         console.log('while getting data from CrawlingFeed Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 async function getDownloadDataTable(PictureID) {
@@ -506,6 +611,7 @@ async function getDownloadDataTable(PictureID) {
     } catch (err) {
         console.log('while getting data on DownloadData Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 async function updateDownloadDataTable(FeedData) {
@@ -542,6 +648,7 @@ async function updateDownloadDataTable(FeedData) {
     } catch (err) {
         console.log('while updating data on DownloadData Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 async function updateBrandInfoTable(BrandInfoData) {
@@ -566,6 +673,7 @@ async function updateBrandInfoTable(BrandInfoData) {
     } catch (err) {
         console.log('while updating data on BrandInfo Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 async function updateCrawlingFeedTable(CrawlingData) {
@@ -590,6 +698,7 @@ async function updateCrawlingFeedTable(CrawlingData) {
     } catch (err) {
         console.log('while updating data on CrawlingFeed Table - DYNAMODB');
         console.log(err);
+        return false;
     }
 }
 var downloadcrawling = {

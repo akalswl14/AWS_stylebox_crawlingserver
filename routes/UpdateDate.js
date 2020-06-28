@@ -16,7 +16,7 @@ if (day.length == 1) {
 }
 TodayDate = year + '-' + month + '-' + day;
 var UpdateDate = {
-    update_date: async function (req, res) {
+    update_date: async function () {
         try {
             var params = {
                 TableName: 'LastUpdateDate',

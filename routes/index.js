@@ -11,7 +11,7 @@ var docClient = new AWS.DynamoDB.DocumentClient();
 
 router.get('/firstcrawling', function (req, res) {
     try {
-        Crawling.runcrawling(req, res);
+        Crawling.runcrawling();
     } catch (err) {
         console.log(err);
         res.send({ type: 'error', error: err });

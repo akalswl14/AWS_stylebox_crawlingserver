@@ -24,7 +24,7 @@ var MakeDownloadRequest = {
             }
             json_data[key] = ValueList;
         }
-        downloadcrawling.runcrawling(json_data,res)
+        downloadcrawling.runcrawling(json_data, res)
     }
 };
 module.exports = MakeDownloadRequest;
