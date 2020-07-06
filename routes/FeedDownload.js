@@ -18,7 +18,7 @@ var RequestJsonData;
 const init = async (ReqJsonData, res) => {
     var dbData = await getLastUpdateDateTable();
     if (dbData == false) {
-        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
         return;
     }
     dbData = dbData.Item;
@@ -32,7 +32,7 @@ const init = async (ReqJsonData, res) => {
     var tmprtn = await updateLastUpdateDateTable(true);
     if (tmprtn == false) {
         await updateLastUpdateDateTable(false);
-        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
         return;
     }
     var TodatyDate = DateConversion(new Date());
@@ -40,20 +40,20 @@ const init = async (ReqJsonData, res) => {
         var tmprtn = await clearBucket('downloaddata-stylebox');
         if (tmprtn == false) {
             await updateLastUpdateDateTable(false);
-            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
             return;
         }
         var tmprtn = await clearDownloadDataTable();
         if (tmprtn == false) {
             await updateLastUpdateDateTable(false);
-            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
             return;
         }
         if (DownloadNum != 0) {
             var tmprtn = await update_downloadnum_LastUpdateDateTable(0);
             if (tmprtn == false) {
                 await updateLastUpdateDateTable(false);
-                res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+                res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
                 return;
             }
             DownloadNum = 0;
@@ -63,7 +63,7 @@ const init = async (ReqJsonData, res) => {
     RequestJsonData = ReqJsonData;
     var FeedUrlList = Object.keys(RequestJsonData);
     var Len_UrlList = FeedUrlList.length;
-    const browser = await puppeteer.launch();
+    const browser = await puppeteer.launch({args: ['--no-sandbox', '--disable-setuid-sandbox']});
     const page = await browser.newPage();
     for (var i = 0; i < Len_UrlList; i++) {
         console.log('for문')
@@ -73,7 +73,7 @@ const init = async (ReqJsonData, res) => {
         if (JsonData == false) {
             await updateLastUpdateDateTable(false);
             await browser.close();
-            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
             return;
         }
         console.log(JsonData.hasOwnProperty(['graphql']));
@@ -81,7 +81,7 @@ const init = async (ReqJsonData, res) => {
         if (dbData == false) {
             await updateLastUpdateDateTable(false);
             await browser.close();
-            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
             return;
         }
         var CrawlingData = dbData.Item;
@@ -90,7 +90,7 @@ const init = async (ReqJsonData, res) => {
         if (dbData == false) {
             await updateLastUpdateDateTable(false);
             await browser.close();
-            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
             return;
         }
         var BrandInfoData = dbData.Item;
@@ -100,7 +100,7 @@ const init = async (ReqJsonData, res) => {
             if (tmpPicList == false) {
                 await updateLastUpdateDateTable(false);
                 await browser.close();
-                res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+                res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
                 return;
             }
             PictureIdList = PictureIdList.concat(tmpPicList);
@@ -116,14 +116,14 @@ const init = async (ReqJsonData, res) => {
         if (tmprtn == false) {
             await updateLastUpdateDateTable(false);
             await browser.close();
-            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
             return;
         }
         tmprtn = await updateCrawlingFeedTable(CrawlingData);
         if (tmprtn == false) {
             await updateLastUpdateDateTable(false);
             await browser.close();
-            res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+            res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
             return;
         }
     }
@@ -132,7 +132,7 @@ const init = async (ReqJsonData, res) => {
     if (ExcelDataList == false) {
         await updateLastUpdateDateTable(false);
         await browser.close();
-        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
         return;
     }
     MakeExcel(ExcelDataList);
@@ -141,14 +141,14 @@ const init = async (ReqJsonData, res) => {
     if (tmprtn == false) {
         await updateLastUpdateDateTable(false);
         await browser.close();
-        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
         return;
     }
     var willSendthis = await DownloadZip();
     if (willSendthis == false) {
         await updateLastUpdateDateTable(false);
         await browser.close();
-        res.redirect('http://stylebox-manage-webserver-dev.eba-ij5jc3pg.ap-southeast-1.elasticbeanstalk.com/');
+        res.redirect('http://stylebox-manage-webserver-dev.ap-southeast-1.elasticbeanstalk.com/');
         return;
     }
     await updateLastUpdateDateTable(false);
@@ -484,13 +484,18 @@ async function clearDownloadDataTable() {
             }
             inputData.push(tmp);
         }
-        var params = {
-            RequestItems: {
-                'DownloadData': inputData
-            }
-        };
-        let data = await docClient.batchWrite(params).promise();
-        return data;
+        if(inputData.length > 0){
+            var params = {
+                RequestItems: {
+                    'DownloadData': inputData
+                }
+            };
+            let data = await docClient.batchWrite(params).promise();
+            return data;
+        }else{
+            return true;
+        }
+        
     } catch (err) {
         console.log("while clear DownloadData Table");
         console.log(err);
